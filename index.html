@@ -20,7 +20,7 @@
       padding: 8px 12px;
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       border-bottom: 1px solid #3f3f46;
       z-index: 20;
@@ -29,19 +29,32 @@
       background: #3b82f6;
       color: white;
       border: none;
-      padding: 7px 12px;
+      padding: 6px 10px;
       border-radius: 6px;
       cursor: pointer;
       font-size: 13px;
       font-weight: 500;
       touch-action: manipulation;
+      user-select: none;
     }
     button.active-mode {
       background: #f59e0b;
       color: #000;
       font-weight: 700;
     }
+    button:disabled { background: #52525b; cursor: not-allowed; }
     input[type="file"] { display: none; }
+
+    .zoom-controls {
+      display: flex;
+      gap: 4px;
+      background: #18181b;
+      padding: 3px 6px;
+      border-radius: 6px;
+      border: 1px solid #3f3f46;
+      align-items: center;
+    }
+    .zoom-controls span { font-size: 11px; color: #a1a1aa; min-width: 36px; text-align: center; }
 
     #main-container {
       display: flex;
@@ -54,34 +67,30 @@
       flex: 1;
       position: relative;
       background: #09090b;
+      overflow: auto; /* Erlaubt Panning bei hohem Zoom */
       display: flex;
       justify-content: center;
       align-items: center;
-      overflow: hidden;
-      padding: 10px;
     }
 
     canvas {
-      max-width: 100%;
-      max-height: 100%;
-      width: auto;
-      height: auto;
-      object-fit: contain;
       cursor: crosshair;
       touch-action: none;
       box-shadow: 0 0 15px rgba(0,0,0,0.8);
       background: #18181b;
+      transform-origin: center center;
+      transition: width 0.1s ease, height 0.1s ease;
     }
 
     #sidebar {
-      width: 320px;
+      width: 300px;
       background: #27272a;
       padding: 12px;
       overflow-y: auto;
       border-left: 1px solid #3f3f46;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
 
     .panel {
@@ -90,14 +99,14 @@
       border-radius: 6px;
       border: 1px solid #3f3f46;
     }
-    .panel h3 { font-size: 14px; margin-bottom: 8px; color: #60a5fa; }
-    .status-msg { font-size: 12px; color: #a1a1aa; margin-bottom: 6px; }
+    .panel h3 { font-size: 13px; margin-bottom: 6px; color: #60a5fa; }
+    .status-msg { font-size: 12px; color: #a1a1aa; margin-bottom: 4px; line-height: 1.3; }
 
     .input-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 6px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .input-group {
       display: flex;
@@ -107,7 +116,7 @@
     }
     .input-group input {
       margin-top: 2px;
-      padding: 5px;
+      padding: 4px 6px;
       border-radius: 4px;
       border: 1px solid #3f3f46;
       background: #27272a;
@@ -120,11 +129,11 @@
       position: absolute;
       bottom: 16px;
       left: 16px;
-      background: rgba(24, 24, 27, 0.85);
+      background: rgba(24, 24, 27, 0.9);
       border: 1px solid #52525b;
       border-radius: 12px;
-      width: 110px;
-      height: 110px;
+      width: 120px;
+      height: 120px;
       backdrop-filter: blur(4px);
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -146,12 +155,14 @@
       cursor: pointer;
     }
     .nudge-btn:active { background: #60a5fa; }
-    .nudge-center {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 9px;
-      color: #a1a1aa;
+    .nudge-step-btn {
+      background: #27272a;
+      border: 1px solid #60a5fa;
+      color: #60a5fa;
+      font-weight: bold;
+      font-size: 11px;
+      border-radius: 4px;
+      cursor: pointer;
     }
 
     table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 6px; }
@@ -160,36 +171,43 @@
 
     @media (max-width: 800px) {
       #main-container { flex-direction: column; }
-      #sidebar { width: 100%; height: 260px; border-left: none; border-top: 1px solid #3f3f46; }
-      #nudge-pad { bottom: 10px; left: 10px; width: 95px; height: 95px; }
+      #sidebar { width: 100%; height: 230px; border-left: none; border-top: 1px solid #3f3f46; }
+      #nudge-pad { bottom: 10px; left: 10px; width: 105px; height: 105px; }
     }
   </style>
 </head>
 <body>
 
   <header>
-    <label class="btn" for="fileInput">📁 Bild / Foto</label>
+    <label class="btn" for="fileInput">📁 Bild</label>
     <input type="file" id="fileInput" accept="image/*" capture="environment">
     
     <button id="modeAlignBtn" onclick="setMode('align')">📐 1. Ausrichten</button>
     <button id="modeCalibBtn" onclick="setMode('calib')">🎯 2. Kalibrieren</button>
-    <button id="modeDataBtn" onclick="setMode('data')">📈 3. Punkte erfassen</button>
+    <button id="modeDataBtn" onclick="setMode('data')">📈 3. Punkte</button>
     
     <button id="btnWarp" style="background:#10b981;" onclick="applyPerspectiveWarp()">Geraderücken</button>
-    <button id="btnExport" style="background:#8b5cf6;" onclick="exportCSV()">CSV Export</button>
+    
+    <div class="zoom-controls">
+      <button onclick="changeZoom(-0.25)">🔍-</button>
+      <span id="zoomLabel">Fit</span>
+      <button onclick="changeZoom(0.25)">🔍+</button>
+      <button onclick="resetZoom()">100%</button>
+    </div>
+
+    <button id="btnExport" style="background:#8b5cf6;" onclick="exportCSV()">CSV</button>
   </header>
 
   <div id="main-container">
     <div id="canvas-container">
       <canvas id="canvas"></canvas>
       
-      <!-- Pfeilkreuz zur Feinjustierung -->
       <div id="nudge-pad">
         <div></div>
         <button class="nudge-btn" onclick="nudge(0, -1)">▲</button>
         <div></div>
         <button class="nudge-btn" onclick="nudge(-1, 0)">◀</button>
-        <div class="nudge-center">1px</div>
+        <button class="nudge-step-btn" id="stepToggleBtn" onclick="toggleStepSize()">1px</button>
         <button class="nudge-btn" onclick="nudge(1, 0)">▶</button>
         <div></div>
         <button class="nudge-btn" onclick="nudge(0, 1)">▼</button>
@@ -199,27 +217,27 @@
 
     <div id="sidebar">
       <div class="panel">
-        <h3 id="panel-title">Modus: Ausrichten</h3>
-        <p class="status-msg" id="status-desc">Ziehe die Ecken an die Ränder des Diagramms und klicke auf "Geraderücken".</p>
+        <h3 id="panel-title">Modus: 1. Ausrichten</h3>
+        <p class="status-msg" id="status-desc">Klicke 4 Ecken: Oben-Links (P1), Oben-Rechts (P2), Unten-Rechts (P3), Unten-Links (P4).</p>
       </div>
 
       <div class="panel">
         <h3>Kalibrierwerte</h3>
         <div class="input-grid">
           <div class="input-group">
-            <label>X-Min Wert</label>
+            <label>X-Min</label>
             <input type="number" id="xMinVal" value="0">
           </div>
           <div class="input-group">
-            <label>X-Max Wert</label>
+            <label>X-Max</label>
             <input type="number" id="xMaxVal" value="100">
           </div>
           <div class="input-group">
-            <label>Y-Min Wert</label>
+            <label>Y-Min</label>
             <input type="number" id="yMinVal" value="0">
           </div>
           <div class="input-group">
-            <label>Y-Max Wert</label>
+            <label>Y-Max</label>
             <input type="number" id="yMaxVal" value="10">
           </div>
         </div>
@@ -228,7 +246,7 @@
       <div class="panel" style="flex:1; overflow-y:auto;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <h3>Datenpunkte</h3>
-          <button style="background:#ef4444; padding:3px 6px; font-size:11px;" onclick="clearDataPoints()">Leeren</button>
+          <button style="background:#ef4444; padding:2px 6px; font-size:11px;" onclick="clearDataPoints()">Leeren</button>
         </div>
         <table id="dataTable">
           <thead>
@@ -243,18 +261,25 @@
   <script>
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
+    const container = document.getElementById('canvas-container');
     const fileInput = document.getElementById('fileInput');
 
     let imgElement = new Image();
     let currentMode = 'align';
     let activePointRef = null;
+    let stepSize = 1; // 1px oder 10px
+    let currentZoom = 1.0;
+    let isFitToScreen = true;
 
+    // 4 Ecken fürs Entzerren [P1, P2, P3, P4]
     let alignCorners = [];
+    let alignStep = 0;
+
+    // Kalibrier-Punkte: { x1, x2, y1, y2 }
     let calibPoints = { x1: null, x2: null, y1: null, y2: null };
     let calibStep = 0;
     let dataPoints = [];
 
-    // Maximal erlaubte Pixelbreite/-höhe zur Verhinderung von Speicherüberläufen
     const MAX_DIMENSION = 1600;
 
     fileInput.addEventListener('change', (e) => {
@@ -268,7 +293,6 @@
           let w = tempImg.width;
           let h = tempImg.height;
 
-          // Intelligentes Herunterskalieren großer Handyfotos
           if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
             const scale = Math.min(MAX_DIMENSION / w, MAX_DIMENSION / h);
             w = Math.round(w * scale);
@@ -278,24 +302,19 @@
           const offCanvas = document.createElement('canvas');
           offCanvas.width = w;
           offCanvas.height = h;
-          const offCtx = offCanvas.getContext('2d');
-          offCtx.drawImage(tempImg, 0, 0, w, h);
+          offCanvas.getContext('2d').drawImage(tempImg, 0, 0, w, h);
 
           imgElement = new Image();
           imgElement.onload = () => {
             canvas.width = w;
             canvas.height = h;
-            alignCorners = [
-              { x: w * 0.05, y: h * 0.05 },
-              { x: w * 0.95, y: h * 0.05 },
-              { x: w * 0.95, y: h * 0.95 },
-              { x: w * 0.05, y: h * 0.95 }
-            ];
+            alignCorners = [];
+            alignStep = 0;
             calibPoints = { x1: null, x2: null, y1: null, y2: null };
             dataPoints = [];
             updateTable();
             setMode('align');
-            redraw();
+            fitToScreen();
           };
           imgElement.src = offCanvas.toDataURL('image/jpeg', 0.92);
         };
@@ -304,6 +323,49 @@
       reader.readAsDataURL(file);
     });
 
+    // Zoom-Funktionen
+    function updateCanvasSize() {
+      if (!imgElement.src) return;
+      if (isFitToScreen) {
+        const cWidth = container.clientWidth - 20;
+        const cHeight = container.clientHeight - 20;
+        const scale = Math.min(cWidth / imgElement.width, cHeight / imgElement.height);
+        canvas.style.width = `${Math.round(imgElement.width * scale)}px`;
+        canvas.style.height = `${Math.round(imgElement.height * scale)}px`;
+        document.getElementById('zoomLabel').innerText = 'Fit';
+      } else {
+        canvas.style.width = `${Math.round(imgElement.width * currentZoom)}px`;
+        canvas.style.height = `${Math.round(imgElement.height * currentZoom)}px`;
+        document.getElementById('zoomLabel').innerText = `${Math.round(currentZoom * 100)}%`;
+      }
+      redraw();
+    }
+
+    function fitToScreen() {
+      isFitToScreen = true;
+      updateCanvasSize();
+    }
+
+    function changeZoom(delta) {
+      if (isFitToScreen) {
+        currentZoom = parseFloat((canvas.clientWidth / imgElement.width).toFixed(2));
+        isFitToScreen = false;
+      }
+      currentZoom = Math.min(Math.max(0.25, currentZoom + delta), 4.0);
+      updateCanvasSize();
+    }
+
+    function resetZoom() {
+      isFitToScreen = false;
+      currentZoom = 1.0;
+      updateCanvasSize();
+    }
+
+    window.addEventListener('resize', () => {
+      if (isFitToScreen) updateCanvasSize();
+    });
+
+    // Modus Umschaltung
     function setMode(mode) {
       currentMode = mode;
       document.getElementById('modeAlignBtn').classList.toggle('active-mode', mode === 'align');
@@ -315,18 +377,36 @@
 
       if (mode === 'align') {
         title.innerText = 'Modus: 1. Ausrichten';
-        desc.innerText = 'Bewege die 4 Ecken auf den Diagrammrahmen. Klicke dann auf "Geraderücken".';
+        desc.innerText = 'Klicke nacheinander auf: P1 (Oben-Links), P2 (Oben-Rechts), P3 (Unten-Rechts), P4 (Unten-Links).';
       } else if (mode === 'calib') {
         title.innerText = 'Modus: 2. Kalibrieren';
         calibStep = 0;
         desc.innerText = 'Klicke nacheinander: 1. X-Min, 2. X-Max, 3. Y-Min, 4. Y-Max.';
       } else if (mode === 'data') {
         title.innerText = 'Modus: 3. Datenpunkte';
-        desc.innerText = 'Klicke Datenpunkte an. Justiere den letzten Punkt mit dem Steuerkreuz.';
+        desc.innerText = 'Klicke Datenpunkte an. Justiere mit Pfeilkreuz oder Tastatur-Pfeilen.';
       }
       redraw();
     }
 
+    // Step-Size Toggle
+    window.toggleStepSize = function() {
+      stepSize = (stepSize === 1) ? 10 : 1;
+      document.getElementById('stepToggleBtn').innerText = `${stepSize}px`;
+    };
+
+    // Tastatursteuerung
+    window.addEventListener('keydown', (e) => {
+      if (!activePointRef) return;
+      let mult = e.shiftKey ? 10 : stepSize;
+
+      if (e.key === 'ArrowUp') { nudge(0, -1, mult); e.preventDefault(); }
+      else if (e.key === 'ArrowDown') { nudge(0, 1, mult); e.preventDefault(); }
+      else if (e.key === 'ArrowLeft') { nudge(-1, 0, mult); e.preventDefault(); }
+      else if (e.key === 'ArrowRight') { nudge(1, 0, mult); e.preventDefault(); }
+    });
+
+    // Pointer Interaktion
     canvas.addEventListener('pointerdown', (e) => {
       if (!imgElement.src) return;
 
@@ -335,28 +415,38 @@
       const scaleY = canvas.height / rect.height;
       const x = (e.clientX - rect.left) * scaleX;
       const y = (e.clientY - rect.top) * scaleY;
+      const pt = { x, y };
 
       if (currentMode === 'align') {
+        // Bestehenden Punkt auswählen, falls nah geklickt
         let closest = null;
-        let minDist = Infinity;
+        let minDist = 30 * scaleX;
         alignCorners.forEach(c => {
           const d = Math.hypot(c.x - x, c.y - y);
           if (d < minDist) { minDist = d; closest = c; }
         });
 
-        // Wähle nähste Ecke oder setze sie
-        if (minDist < 80 * scaleX) {
+        if (closest) {
           activePointRef = closest;
+        } else if (alignCorners.length < 4) {
+          alignCorners.push(pt);
+          activePointRef = pt;
+          const names = ['P2 (Oben-Rechts)', 'P3 (Unten-Rechts)', 'P4 (Unten-Links)', 'Ausrichtung komplett'];
+          document.getElementById('status-desc').innerText = `Gesetzt! Als Nächstes: ${names[alignCorners.length - 1]}`;
         } else {
-          activePointRef = closest;
-          if (activePointRef) {
-            activePointRef.x = x;
-            activePointRef.y = y;
+          // Alle 4 existieren bereits -> Ersetze nächsten Punkt
+          let closestAny = alignCorners[0];
+          let dMin = Math.hypot(alignCorners[0].x - x, alignCorners[0].y - y);
+          for (let i = 1; i < 4; i++) {
+            const d = Math.hypot(alignCorners[i].x - x, alignCorners[i].y - y);
+            if (d < dMin) { dMin = d; closestAny = alignCorners[i]; }
           }
+          closestAny.x = x;
+          closestAny.y = y;
+          activePointRef = closestAny;
         }
       } 
       else if (currentMode === 'calib') {
-        const pt = { x, y };
         activePointRef = pt;
         if (calibStep === 0) {
           calibPoints.x1 = pt; calibStep = 1;
@@ -369,11 +459,10 @@
           document.getElementById('status-desc').innerText = 'Klicke auf Y-Max.';
         } else if (calibStep === 3) {
           calibPoints.y2 = pt; calibStep = 0;
-          document.getElementById('status-desc').innerText = 'Kalibrierung beendet! Wechsel zu "3. Punkte erfassen".';
+          document.getElementById('status-desc').innerText = 'Kalibrierung beendet! Wechsle zu "3. Punkte".';
         }
       } 
       else if (currentMode === 'data') {
-        const pt = { x, y };
         dataPoints.push(pt);
         activePointRef = pt;
         updateTable();
@@ -382,10 +471,12 @@
       redraw();
     });
 
-    window.nudge = function(dx, dy) {
+    // Steuerkreuz Aktion
+    window.nudge = function(dx, dy, customStep) {
       if (!activePointRef) return;
-      activePointRef.x += dx;
-      activePointRef.y += dy;
+      const s = customStep || stepSize;
+      activePointRef.x += dx * s;
+      activePointRef.y += dy * s;
       redraw();
       if (currentMode === 'data') updateTable();
     };
@@ -396,13 +487,13 @@
       ctx.drawImage(imgElement, 0, 0);
 
       // Ecken zeichnen
-      if (currentMode === 'align' && alignCorners.length === 4) {
+      if (currentMode === 'align' && alignCorners.length > 0) {
         ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(alignCorners[0].x, alignCorners[0].y);
-        for (let i = 1; i < 4; i++) ctx.lineTo(alignCorners[i].x, alignCorners[i].y);
-        ctx.closePath();
+        for (let i = 1; i < alignCorners.length; i++) ctx.lineTo(alignCorners[i].x, alignCorners[i].y);
+        if (alignCorners.length === 4) ctx.closePath();
         ctx.stroke();
 
         alignCorners.forEach((c, idx) => {
@@ -410,13 +501,13 @@
         });
       }
 
-      // Kalibrier-Punkte zeichnen
+      // Kalibrier-Punkte
       if (calibPoints.x1) drawMarker(calibPoints.x1, '#3b82f6', 'X-Min', calibPoints.x1 === activePointRef);
       if (calibPoints.x2) drawMarker(calibPoints.x2, '#3b82f6', 'X-Max', calibPoints.x2 === activePointRef);
       if (calibPoints.y1) drawMarker(calibPoints.y1, '#10b981', 'Y-Min', calibPoints.y1 === activePointRef);
       if (calibPoints.y2) drawMarker(calibPoints.y2, '#10b981', 'Y-Max', calibPoints.y2 === activePointRef);
 
-      // Datenpunkte zeichnen
+      // Datenpunkte
       dataPoints.forEach((p, idx) => {
         drawMarker(p, '#ef4444', `${idx+1}`, p === activePointRef);
       });
@@ -428,21 +519,24 @@
       ctx.lineWidth = isActive ? 3 : 2;
 
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, isActive ? 8 : 6, 0, 2 * Math.PI);
+      ctx.arc(pt.x, pt.y, isActive ? 7 : 5, 0, 2 * Math.PI);
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.moveTo(pt.x - 12, pt.y); ctx.lineTo(pt.x + 12, pt.y);
-      ctx.moveTo(pt.x, pt.y - 12); ctx.lineTo(pt.x, pt.y + 12);
+      ctx.moveTo(pt.x - 10, pt.y); ctx.lineTo(pt.x + 10, pt.y);
+      ctx.moveTo(pt.x, pt.y - 10); ctx.lineTo(pt.x, pt.y + 10);
       ctx.stroke();
 
       ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(label, pt.x + 10, pt.y - 10);
+      ctx.fillText(label, pt.x + 8, pt.y - 8);
     }
 
-    // Hardware-beschleunigtes Entzerren (2 Dreiecke) ohne CPU-Blockade
+    // Hardware-beschleunigtes Entzerren
     function applyPerspectiveWarp() {
-      if (alignCorners.length < 4 || !imgElement.src) return;
+      if (alignCorners.length < 4 || !imgElement.src) {
+        alert('Bitte zuerst alle 4 Ecken P1 bis P4 setzen!');
+        return;
+      }
 
       const [p0, p1, p2, p3] = alignCorners; // TL, TR, BR, BL
       const w = Math.round(Math.max(Math.hypot(p1.x - p0.x, p1.y - p0.y), Math.hypot(p2.x - p3.x, p2.y - p3.y)));
@@ -488,7 +582,6 @@
         offCtx.restore();
       }
 
-      // Dreieck 1 (TL, TR, BL) & Dreieck 2 (TR, BR, BL)
       mapTriangle([p0, p1, p3], [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: 0, y: h }]);
       mapTriangle([p1, p2, p3], [{ x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }]);
 
@@ -499,7 +592,7 @@
         canvas.height = warpedImg.height;
         alignCorners = [];
         setMode('calib');
-        redraw();
+        fitToScreen();
       };
       warpedImg.src = offCanvas.toDataURL('image/jpeg', 0.95);
     }
