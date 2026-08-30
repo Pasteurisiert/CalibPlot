@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Diagramm Digitalisierer Pro</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -39,6 +39,7 @@
       font-weight: 500;
       touch-action: manipulation;
       user-select: none;
+      -webkit-user-select: none;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -61,6 +62,7 @@
       overflow: hidden;
       clip: rect(0, 0, 0, 0);
       border: 0;
+      opacity: 0.01;
     }
 
     #main-container {
@@ -84,7 +86,7 @@
 
     canvas {
       cursor: crosshair;
-      touch-action: none; /* Wichtig für eigene Pointer/Gestensteuerung */
+      touch-action: none;
       box-shadow: 0 0 15px rgba(0,0,0,0.8);
       background: #18181b;
     }
@@ -162,6 +164,7 @@
       width: 115px;
       height: 115px;
       backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       grid-template-rows: repeat(3, 1fr);
@@ -220,7 +223,7 @@
 
   <header>
     <label class="file-btn" for="fileInput" style="background:#2563eb;">📁 Bild laden</label>
-    <input type="file" id="fileInput" class="visually-hidden-input" accept="image/*" onclick="this.value = null;">
+    <input type="file" id="fileInput" class="visually-hidden-input" accept="image/*">
     
     <button id="modeAlignBtn" onclick="setMode('align')">📐 1. Ausrichten</button>
     <button id="btnWarp" style="background:#10b981;" onclick="applyPerspectiveWarp()">🪄 2. Geraderücken</button>
@@ -283,7 +286,7 @@
           </div>
           <div class="input-group">
             <label>Y-Max Wert</label>
-            <input type="number" id="yMaxVal" value="10">
+            <input type="number" id="yMaxVal" value="10" oninput="updateTable()">
           </div>
         </div>
       </div>
@@ -321,14 +324,12 @@
     let activePointRef = null;
     let stepSize = 1;
 
-    // Viewport & Pan
     let view = { x: 0, y: 0, w: 0, h: 0 };
     let isPanningMouse = false;
     let panStartMouse = { x: 0, y: 0 };
     let zoomDragStart = null;
     let currentDragPos = null;
 
-    // Multi-Touch Geste State
     const activePointers = new Map();
     let initialPinchDist = null;
     let initialPinchCenter = null;
@@ -348,43 +349,57 @@
 
     const MAX_DIMENSION = 1800;
 
+    // iPad / iOS kompatibler Bildlader
     fileInput.addEventListener('change', function(e) {
       const file = this.files && this.files[0];
       if (!file) return;
 
-      const blobUrl = URL.createObjectURL(file);
-      const tempImg = new Image();
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const tempImg = new Image();
+        tempImg.onload = function() {
+          let w = tempImg.naturalWidth || tempImg.width;
+          let h = tempImg.naturalHeight || tempImg.height;
 
-      tempImg.onload = function() {
-        let w = tempImg.width || tempImg.naturalWidth;
-        let h = tempImg.height || tempImg.naturalHeight;
+          if (!w || !h) {
+            alert('Das Bild konnte nicht dekodiert werden.');
+            return;
+          }
 
-        if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
-          const scale = Math.min(MAX_DIMENSION / w, MAX_DIMENSION / h);
-          w = Math.round(w * scale);
-          h = Math.round(h * scale);
-        }
+          if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
+            const scale = Math.min(MAX_DIMENSION / w, MAX_DIMENSION / h);
+            w = Math.round(w * scale);
+            h = Math.round(h * scale);
+          }
 
-        const off = document.createElement('canvas');
-        off.width = w;
-        off.height = h;
-        off.getContext('2d').drawImage(tempImg, 0, 0, w, h);
-        URL.revokeObjectURL(blobUrl);
+          const off = document.createElement('canvas');
+          off.width = w;
+          off.height = h;
+          const offCtx = off.getContext('2d');
+          offCtx.drawImage(tempImg, 0, 0, w, h);
 
-        rawImage = off;
-        currentImage = off;
+          rawImage = off;
+          currentImage = off;
 
-        document.getElementById('btnUndoWarp').disabled = true;
-        alignCorners = [];
-        calibPoints = { x1: null, x2: null, y1: null, y2: null };
-        dataPoints = [];
-        selectedIndices.clear();
-        updateTable();
-        
-        resetZoom();
-        setMode('align');
+          document.getElementById('btnUndoWarp').disabled = true;
+          alignCorners = [];
+          calibPoints = { x1: null, x2: null, y1: null, y2: null };
+          dataPoints = [];
+          selectedIndices.clear();
+          updateTable();
+          
+          resetZoom();
+          setMode('align');
+        };
+        tempImg.onerror = function() {
+          alert('Fehler beim Laden des Bildes auf diesem Gerät.');
+        };
+        tempImg.src = evt.target.result;
       };
-      tempImg.src = blobUrl;
+      reader.readAsDataURL(file);
+
+      // Reset erst nach dem Trigger
+      setTimeout(() => { fileInput.value = ''; }, 500);
     });
 
     function resetZoom() {
@@ -527,15 +542,11 @@
 
     canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-    // -------------------------------------------------------------
-    // GESTEN- & POINTER-STEUERUNG (TOUCH & MAUS)
-    // -------------------------------------------------------------
-
+    // Multi-Touch & Pointer Events
     canvas.addEventListener('pointerdown', (e) => {
       if (!currentImage) return;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-      // Maus: Pan mit Rechtsklick
       if (e.pointerType === 'mouse' && (e.button === 2 || e.button === 1)) {
         isPanningMouse = true;
         panStartMouse = { x: e.clientX, y: e.clientY };
@@ -543,7 +554,6 @@
         return;
       }
 
-      // Touch: 2 Finger erkannt -> Sofort Pinch-to-Zoom initialisieren
       if (activePointers.size === 2) {
         isTouchGesturing = true;
         const pts = Array.from(activePointers.values());
@@ -556,7 +566,6 @@
         return;
       }
 
-      // Einzelfinger / Linksklick Start
       if (activePointers.size === 1) {
         const imgPt = canvasToImageCoords(e.clientX, e.clientY);
         singleTouchStart = { clientX: e.clientX, clientY: e.clientY, imgPt };
@@ -572,7 +581,6 @@
       if (!currentImage || !activePointers.has(e.pointerId)) return;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-      // Maus Pan
       if (isPanningMouse) {
         const dx = (e.clientX - panStartMouse.x) * (view.w / canvas.width);
         const dy = (e.clientY - panStartMouse.y) * (view.h / canvas.height);
@@ -584,7 +592,6 @@
         return;
       }
 
-      // Touch: 2-Finger Zoom & Pan
       if (activePointers.size === 2 && isTouchGesturing && initialPinchDist && initialPinchCenter && initialPinchView) {
         const pts = Array.from(activePointers.values());
         const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
@@ -600,16 +607,406 @@
         newW = Math.max(20, Math.min(currentImage.width, newW));
         newH = Math.max(20, Math.min(currentImage.height, newH));
 
-        // Bild-Mittelpunkt bei Gestenstart
         const rect = canvas.getBoundingClientRect();
         const relCenterX = (initialPinchCenter.x - rect.left) / rect.width;
         const relCenterY = (initialPinchCenter.y - rect.top) / rect.height;
         const centerImgX = initialPinchView.x + relCenterX * initialPinchView.w;
         const centerImgY = initialPinchView.y + relCenterY * initialPinchView.h;
 
-        // Verschiebung des Mittelpunkts (Pan)
         const panDeltaX = (currentCenter.x - initialPinchCenter.x) * (newW / canvas.width);
         const panDeltaY = (currentCenter.y - initialPinchCenter.y) * (newH / canvas.height);
 
         view.x = centerImgX - relCenterX * newW - panDeltaX;
-        view.y = centerImgY -
+        view.y = centerImgY - relCenterY * newH - panDeltaY;
+        view.w = newW;
+        view.h = newH;
+
+        clampView();
+        resizeCanvasToFit();
+        redraw();
+        return;
+      }
+
+      if (currentMode === 'zoom' && zoomDragStart) {
+        currentDragPos = canvasToImageCoords(e.clientX, e.clientY);
+        redraw();
+      }
+    });
+
+    canvas.addEventListener('pointerup', handlePointerEnd);
+    canvas.addEventListener('pointercancel', handlePointerEnd);
+
+    function handlePointerEnd(e) {
+      if (activePointers.has(e.pointerId)) {
+        activePointers.delete(e.pointerId);
+      }
+
+      if (isPanningMouse) {
+        isPanningMouse = false;
+        return;
+      }
+
+      if (isTouchGesturing) {
+        if (activePointers.size === 0) {
+          isTouchGesturing = false;
+          initialPinchDist = null;
+          initialPinchCenter = null;
+          initialPinchView = null;
+          singleTouchStart = null;
+        }
+        return;
+      }
+
+      if (currentMode === 'zoom' && zoomDragStart && currentDragPos) {
+        const xMin = Math.min(zoomDragStart.x, currentDragPos.x);
+        const xMax = Math.max(zoomDragStart.x, currentDragPos.x);
+        const yMin = Math.min(zoomDragStart.y, currentDragPos.y);
+        const yMax = Math.max(zoomDragStart.y, currentDragPos.y);
+        const w = xMax - xMin;
+        const h = yMax - yMin;
+
+        if (w > 10 && h > 10) {
+          view = { x: xMin, y: yMin, w: w, h: h };
+          clampView();
+          resizeCanvasToFit();
+        }
+        zoomDragStart = null;
+        currentDragPos = null;
+        singleTouchStart = null;
+        redraw();
+        return;
+      }
+
+      if (singleTouchStart) {
+        const moveDist = Math.hypot(e.clientX - singleTouchStart.clientX, e.clientY - singleTouchStart.clientY);
+        if (moveDist < 8) {
+          applySingleClick(singleTouchStart.imgPt, e.shiftKey, e.ctrlKey || e.metaKey);
+        }
+        singleTouchStart = null;
+      }
+    }
+
+    function applySingleClick(imgPt, isShift, isCtrl) {
+      if (currentMode === 'align') {
+        let closest = findClosest(imgPt, alignCorners, (30 / canvas.width) * view.w);
+        if (closest) {
+          activePointRef = closest;
+        } else if (alignCorners.length < 4) {
+          alignCorners.push(imgPt);
+          activePointRef = imgPt;
+        } else {
+          let nearest = alignCorners[0];
+          let minDist = Math.hypot(alignCorners[0].x - imgPt.x, alignCorners[0].y - imgPt.y);
+          for (let i = 1; i < 4; i++) {
+            const d = Math.hypot(alignCorners[i].x - imgPt.x, alignCorners[i].y - imgPt.y);
+            if (d < minDist) { minDist = d; nearest = alignCorners[i]; }
+          }
+          nearest.x = imgPt.x;
+          nearest.y = imgPt.y;
+          activePointRef = nearest;
+        }
+      }
+      else if (currentMode === 'calib') {
+        const calibArray = Object.entries(calibPoints).filter(([k, v]) => v !== null).map(([k, v]) => ({ key: k, pt: v }));
+        let closestCalib = null;
+        let minDist = (30 / canvas.width) * view.w;
+        calibArray.forEach(item => {
+          const d = Math.hypot(item.pt.x - imgPt.x, item.pt.y - imgPt.y);
+          if (d < minDist) { minDist = d; closestCalib = item; }
+        });
+
+        if (closestCalib) {
+          calibTarget = closestCalib.key;
+          activePointRef = closestCalib.pt;
+          updateCalibButtonHighlight();
+        } else {
+          calibPoints[calibTarget] = imgPt;
+          activePointRef = imgPt;
+          const order = ['x1', 'x2', 'y1', 'y2'];
+          let nextIdx = (order.indexOf(calibTarget) + 1) % 4;
+          calibTarget = order[nextIdx];
+          updateCalibButtonHighlight();
+        }
+      }
+      else if (currentMode === 'data') {
+        let closestIdx = -1;
+        let minDist = (20 / canvas.width) * view.w;
+        dataPoints.forEach((p, idx) => {
+          const d = Math.hypot(p.x - imgPt.x, p.y - imgPt.y);
+          if (d < minDist) { minDist = d; closestIdx = idx; }
+        });
+
+        if (closestIdx !== -1) {
+          handlePointSelection(closestIdx, isShift, isCtrl);
+          activePointRef = dataPoints[closestIdx];
+        } else {
+          dataPoints.push(imgPt);
+          activePointRef = imgPt;
+          selectedIndices.clear();
+          selectedIndices.add(dataPoints.length - 1);
+          lastSelectedIndex = dataPoints.length - 1;
+          updateTable();
+        }
+      }
+
+      redraw();
+    }
+
+    function findClosest(pt, list, maxDist) {
+      let closest = null;
+      let minD = maxDist;
+      list.forEach(item => {
+        const d = Math.hypot(item.x - pt.x, item.y - pt.y);
+        if (d < minD) { minD = d; closest = item; }
+      });
+      return closest;
+    }
+
+    function handlePointSelection(index, isShift, isCtrl) {
+      if (isShift && lastSelectedIndex !== null) {
+        const start = Math.min(lastSelectedIndex, index);
+        const end = Math.max(lastSelectedIndex, index);
+        selectedIndices.clear();
+        for (let i = start; i <= end; i++) selectedIndices.add(i);
+      } else if (isCtrl) {
+        if (selectedIndices.has(index)) selectedIndices.delete(index);
+        else selectedIndices.add(index);
+        lastSelectedIndex = index;
+      } else {
+        selectedIndices.clear();
+        selectedIndices.add(index);
+        lastSelectedIndex = index;
+      }
+      updateTableHighlight();
+      redraw();
+    }
+
+    window.nudge = function(dx, dy, customStep) {
+      if (!activePointRef) return;
+      const s = customStep || stepSize;
+      activePointRef.x += dx * s;
+      activePointRef.y += dy * s;
+      redraw();
+      if (currentMode === 'data') updateTable();
+    };
+
+    function redraw() {
+      if (!currentImage) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.drawImage(
+        currentImage,
+        view.x, view.y, view.w, view.h,
+        0, 0, canvas.width, canvas.height
+      );
+
+      // Ausrichten
+      if (alignCorners.length > 0) {
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const start = imageToCanvasCoords(alignCorners[0]);
+        ctx.moveTo(start.x, start.y);
+        for (let i = 1; i < alignCorners.length; i++) {
+          const pt = imageToCanvasCoords(alignCorners[i]);
+          ctx.lineTo(pt.x, pt.y);
+        }
+        if (alignCorners.length === 4) ctx.closePath();
+        ctx.stroke();
+
+        alignCorners.forEach((c, idx) => {
+          drawMarker(c, '#f59e0b', `P${idx+1}`, c === activePointRef);
+        });
+      }
+
+      // Kalibrier-Punkte
+      if (calibPoints.x1) drawMarker(calibPoints.x1, '#3b82f6', 'X-Min', calibPoints.x1 === activePointRef);
+      if (calibPoints.x2) drawMarker(calibPoints.x2, '#3b82f6', 'X-Max', calibPoints.x2 === activePointRef);
+      if (calibPoints.y1) drawMarker(calibPoints.y1, '#10b981', 'Y-Min', calibPoints.y1 === activePointRef);
+      if (calibPoints.y2) drawMarker(calibPoints.y2, '#10b981', 'Y-Max', calibPoints.y2 === activePointRef);
+
+      // Datenpunkte
+      dataPoints.forEach((p, idx) => {
+        const isSelected = selectedIndices.has(idx);
+        drawMarker(p, isSelected ? '#fbbf24' : '#ef4444', `${idx+1}`, p === activePointRef || isSelected);
+      });
+
+      // Rechteck-Zoom
+      if (currentMode === 'zoom' && zoomDragStart && currentDragPos) {
+        const p1 = imageToCanvasCoords(zoomDragStart);
+        const p2 = imageToCanvasCoords(currentDragPos);
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+        ctx.fillStyle = 'rgba(2, 132, 199, 0.15)';
+        ctx.fillRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+        ctx.setLineDash([]);
+      }
+    }
+
+    function drawMarker(imgPt, color, label, isActive) {
+      const pt = imageToCanvasCoords(imgPt);
+      ctx.strokeStyle = isActive ? '#ffffff' : color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = isActive ? 3 : 2;
+
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, isActive ? 7 : 5, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(pt.x - 10, pt.y); ctx.lineTo(pt.x + 10, pt.y);
+      ctx.moveTo(pt.x, pt.y - 10); ctx.lineTo(pt.x, pt.y + 10);
+      ctx.stroke();
+
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText(label, pt.x + 8, pt.y - 8);
+    }
+
+    function applyPerspectiveWarp() {
+      if (alignCorners.length < 4 || !currentImage) {
+        alert('Bitte zuerst alle 4 Ecken P1 bis P4 setzen!');
+        return;
+      }
+
+      previousAlignCorners = JSON.parse(JSON.stringify(alignCorners));
+
+      const [p0, p1, p2, p3] = alignCorners;
+      const w = Math.round(Math.max(Math.hypot(p1.x - p0.x, p1.y - p0.y), Math.hypot(p2.x - p3.x, p2.y - p3.y)));
+      const h = Math.round(Math.max(Math.hypot(p3.x - p0.x, p3.y - p0.y), Math.hypot(p2.x - p1.x, p2.y - p1.y)));
+
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = w;
+      offCanvas.height = h;
+      const offCtx = offCanvas.getContext('2d');
+
+      function mapTriangle(srcTri, dstTri) {
+        offCtx.save();
+        offCtx.beginPath();
+        offCtx.moveTo(dstTri[0].x, dstTri[0].y);
+        offCtx.lineTo(dstTri[1].x, dstTri[1].y);
+        offCtx.lineTo(dstTri[2].x, dstTri[2].y);
+        offCtx.closePath();
+        offCtx.clip();
+
+        const x0 = srcTri[0].x, y0 = srcTri[0].y;
+        const x1 = srcTri[1].x, y1 = srcTri[1].y;
+        const x2 = srcTri[2].x, y2 = srcTri[2].y;
+        const u0 = dstTri[0].x, v0 = dstTri[0].y;
+        const u1 = dstTri[1].x, v1 = dstTri[1].y;
+        const u2 = dstTri[2].x, v2 = dstTri[2].y;
+
+        const delta = u0 * (v1 - v2) - u1 * (v0 - v2) + u2 * (v0 - v1);
+        if (delta === 0) { offCtx.restore(); return; }
+
+        const a = (x0 * (v1 - v2) - x1 * (v0 - v2) + x2 * (v0 - v1)) / delta;
+        const b = (u0 * (x1 - x2) - u1 * (x0 - x2) + u2 * (x0 - x1)) / delta;
+        const c = x0 - a * u0 - b * v0;
+
+        const d = (y0 * (v1 - v2) - y1 * (v0 - v2) + y2 * (v0 - v1)) / delta;
+        const e = (u0 * (y1 - y2) - u1 * (y0 - y2) + u2 * (y0 - y1)) / delta;
+        const f = y0 - d * u0 - e * v0;
+
+        const det = a * e - b * d;
+        if (det === 0) { offCtx.restore(); return; }
+
+        offCtx.transform(e / det, -d / det, -b / det, a / det, (b * f - c * e) / det, (c * d - a * f) / det);
+        offCtx.drawImage(currentImage, 0, 0);
+        offCtx.restore();
+      }
+
+      mapTriangle([p0, p1, p3], [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: 0, y: h }]);
+      mapTriangle([p1, p2, p3], [{ x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }]);
+
+      currentImage = offCanvas;
+      alignCorners = [];
+      document.getElementById('btnUndoWarp').disabled = false;
+      resetZoom();
+      setMode('calib');
+    }
+
+    function undoPerspectiveWarp() {
+      if (!rawImage) return;
+      currentImage = rawImage;
+      alignCorners = previousAlignCorners;
+      document.getElementById('btnUndoWarp').disabled = true;
+      resetZoom();
+      setMode('align');
+    }
+
+    function calculateCoords(pt) {
+      if (!calibPoints.x1 || !calibPoints.x2 || !calibPoints.y1 || !calibPoints.y2) return { x: '–', y: '–' };
+
+      const xMin = parseFloat(document.getElementById('xMinVal').value);
+      const xMax = parseFloat(document.getElementById('xMaxVal').value);
+      const yMin = parseFloat(document.getElementById('yMinVal').value);
+      const yMax = parseFloat(document.getElementById('yMaxVal').value);
+
+      const realX = xMin + ((pt.x - calibPoints.x1.x) / (calibPoints.x2.x - calibPoints.x1.x)) * (xMax - xMin);
+      const realY = yMin + ((pt.y - calibPoints.y1.y) / (calibPoints.y2.y - calibPoints.y1.y)) * (yMax - yMin);
+
+      return { x: realX.toFixed(3), y: realY.toFixed(3) };
+    }
+
+    function updateTable() {
+      const tbody = document.querySelector('#dataTable tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      dataPoints.forEach((pt, i) => {
+        const val = calculateCoords(pt);
+        const tr = document.createElement('tr');
+        tr.id = `row-${i}`;
+        if (selectedIndices.has(i)) tr.classList.add('selected-row');
+        tr.innerHTML = `<td>${i + 1}</td><td>${val.x}</td><td>${val.y}</td>`;
+        
+        tr.addEventListener('click', (e) => {
+          handlePointSelection(i, e.shiftKey, e.ctrlKey || e.metaKey);
+          activePointRef = dataPoints[i];
+          redraw();
+        });
+        
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateTableHighlight() {
+      dataPoints.forEach((_, i) => {
+        const row = document.getElementById(`row-${i}`);
+        if (row) row.classList.toggle('selected-row', selectedIndices.has(i));
+      });
+    }
+
+    function deleteSelectedPoints() {
+      if (selectedIndices.size === 0) return;
+      dataPoints = dataPoints.filter((_, idx) => !selectedIndices.has(idx));
+      selectedIndices.clear();
+      activePointRef = null;
+      updateTable();
+      redraw();
+    }
+
+    function clearDataPoints() {
+      dataPoints = [];
+      selectedIndices.clear();
+      activePointRef = null;
+      updateTable();
+      redraw();
+    }
+
+    function exportCSV() {
+      if (dataPoints.length === 0) return;
+      let csv = 'Punkt,X,Y\n';
+      dataPoints.forEach((pt, i) => {
+        const val = calculateCoords(pt);
+        csv += `${i + 1},${val.x},${val.y}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'diagramm_daten.csv';
+      link.click();
+    }
+  </script>
+</body>
+</html>
