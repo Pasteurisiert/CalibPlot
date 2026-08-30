@@ -25,11 +25,11 @@
       border-bottom: 1px solid #3f3f46;
       z-index: 20;
     }
-    button, label.btn {
+    button {
       background: #3b82f6;
       color: white;
       border: none;
-      padding: 6px 10px;
+      padding: 7px 12px;
       border-radius: 6px;
       cursor: pointer;
       font-size: 13px;
@@ -43,7 +43,6 @@
       font-weight: 700;
     }
     button:disabled { background: #52525b; cursor: not-allowed; }
-    input[type="file"] { display: none; }
 
     #main-container {
       display: flex;
@@ -60,6 +59,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      min-height: 200px;
     }
 
     canvas {
@@ -166,8 +166,8 @@
 <body>
 
   <header>
-    <label class="btn" for="fileInput">📁 Bild</label>
-    <input type="file" id="fileInput" accept="image/*" capture="environment">
+    <button id="btnLoadImage" style="background:#2563eb;" onclick="triggerFileInput()">📁 Bild / Foto</button>
+    <input type="file" id="fileInput" accept="image/*" style="display:none;">
     
     <button id="modeZoomBtn" onclick="setMode('zoom')" style="background:#0284c7;">🔍 Rechteck-Zoom</button>
     <button onclick="resetZoom()" style="background:#4b5563;">🖼️ Vollansicht</button>
@@ -200,7 +200,7 @@
     <div id="sidebar">
       <div class="panel">
         <h3 id="panel-title">Modus: 1. Ausrichten</h3>
-        <p class="status-msg" id="status-desc">Klicke 4 Ecken: P1 (TL), P2 (TR), P3 (BR), P4 (BL).</p>
+        <p class="status-msg" id="status-desc">Lade ein Bild, um zu starten.</p>
       </div>
 
       <div class="panel">
@@ -246,12 +246,11 @@
     const container = document.getElementById('canvas-container');
     const fileInput = document.getElementById('fileInput');
 
-    let imgElement = new Image();
+    let imgElement = null;
     let currentMode = 'align';
     let activePointRef = null;
     let stepSize = 1;
 
-    // Viewport & Zoom (in Bildkoordinaten)
     let view = { x: 0, y: 0, w: 0, h: 0 };
     let zoomDragStart = null;
     let currentDragPos = null;
@@ -263,63 +262,75 @@
 
     const MAX_DIMENSION = 1600;
 
+    function triggerFileInput() {
+      fileInput.value = '';
+      fileInput.click();
+    }
+
     fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
+      const file = e.target.files && e.target.files[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const tempImg = new Image();
-        tempImg.onload = () => {
-          let w = tempImg.width;
-          let h = tempImg.height;
+      const blobUrl = URL.createObjectURL(file);
+      const tempImg = new Image();
+      
+      tempImg.onload = () => {
+        let w = tempImg.naturalWidth || tempImg.width;
+        let h = tempImg.naturalHeight || tempImg.height;
 
-          if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
-            const scale = Math.min(MAX_DIMENSION / w, MAX_DIMENSION / h);
-            w = Math.round(w * scale);
-            h = Math.round(h * scale);
-          }
+        // Skalieren großer Handybilder zur Entlastung des Speichers
+        if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
+          const scale = Math.min(MAX_DIMENSION / w, MAX_DIMENSION / h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
 
-          const offCanvas = document.createElement('canvas');
-          offCanvas.width = w;
-          offCanvas.height = h;
-          offCanvas.getContext('2d').drawImage(tempImg, 0, 0, w, h);
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = w;
+        offCanvas.height = h;
+        const offCtx = offCanvas.getContext('2d');
+        offCtx.drawImage(tempImg, 0, 0, w, h);
+        URL.revokeObjectURL(blobUrl);
 
-          imgElement = new Image();
-          imgElement.onload = () => {
-            alignCorners = [];
-            calibPoints = { x1: null, x2: null, y1: null, y2: null };
-            dataPoints = [];
-            updateTable();
-            resetZoom();
-            setMode('align');
-          };
-          imgElement.src = offCanvas.toDataURL('image/jpeg', 0.92);
-        };
-        tempImg.src = event.target.result;
+        // Bildobjekt final initialisieren
+        imgElement = offCanvas;
+        alignCorners = [];
+        calibPoints = { x1: null, x2: null, y1: null, y2: null };
+        dataPoints = [];
+        updateTable();
+        
+        resetZoom();
+        setMode('align');
       };
-      reader.readAsDataURL(file);
+
+      tempImg.onerror = () => {
+        alert('Das Bild konnte nicht geladen werden. Bitte versuche ein anderes Format (z. B. JPG/PNG).');
+      };
+
+      tempImg.src = blobUrl;
     });
 
     function resetZoom() {
-      if (!imgElement.src) return;
+      if (!imgElement) return;
       view = { x: 0, y: 0, w: imgElement.width, h: imgElement.height };
       resizeCanvasToFit();
       redraw();
     }
 
     function resizeCanvasToFit() {
-      if (!imgElement.src) return;
-      const cWidth = container.clientWidth - 20;
-      const cHeight = container.clientHeight - 20;
+      if (!imgElement) return;
+      const cWidth = Math.max(container.clientWidth - 20, 100);
+      const cHeight = Math.max(container.clientHeight - 20, 100);
       const scale = Math.min(cWidth / view.w, cHeight / view.h);
-      canvas.width = Math.round(view.w * scale);
-      canvas.height = Math.round(view.h * scale);
+      canvas.width = Math.max(Math.round(view.w * scale), 10);
+      canvas.height = Math.max(Math.round(view.h * scale), 10);
     }
 
     window.addEventListener('resize', () => {
-      resizeCanvasToFit();
-      redraw();
+      if (imgElement) {
+        resizeCanvasToFit();
+        redraw();
+      }
     });
 
     function setMode(mode) {
@@ -332,9 +343,15 @@
       const title = document.getElementById('panel-title');
       const desc = document.getElementById('status-desc');
 
+      if (!imgElement) {
+        title.innerText = 'Kein Bild geladen';
+        desc.innerText = 'Bitte zuerst ein Foto über den blauen Knopf laden.';
+        return;
+      }
+
       if (mode === 'zoom') {
         title.innerText = 'Modus: 🔍 Rechteck-Zoom';
-        desc.innerText = 'Ziehe mit der Maus/Touch ein Rechteck über den Bereich, den du vergrößern möchtest.';
+        desc.innerText = 'Ziehe mit gedrückter Maus ein Rechteck über den gewünschten Bereich.';
       } else if (mode === 'align') {
         title.innerText = 'Modus: 1. Ausrichten';
         desc.innerText = 'Klicke nacheinander auf: P1 (TL), P2 (TR), P3 (BR), P4 (BL).';
@@ -344,7 +361,7 @@
         desc.innerText = 'Klicke nacheinander: 1. X-Min, 2. X-Max, 3. Y-Min, 4. Y-Max.';
       } else if (mode === 'data') {
         title.innerText = 'Modus: 3. Datenpunkte';
-        desc.innerText = 'Klicke Datenpunkte an. Justiere mit Pfeilkreuz oder Tastatur.';
+        desc.innerText = 'Klicke Datenpunkte an. Feinjustierung via Pfeilkreuz oder Tastatur.';
       }
       redraw();
     }
@@ -363,18 +380,16 @@
       else if (e.key === 'ArrowRight') { nudge(1, 0, mult); e.preventDefault(); }
     });
 
-    // Koordinaten-Umrechnung (Canvas -> Original-Bild)
     function canvasToImageCoords(clientX, clientY) {
       const rect = canvas.getBoundingClientRect();
-      const relX = (clientX - rect.left) / rect.width;
-      const relY = (clientY - rect.top) / rect.height;
+      const relX = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+      const relY = Math.min(Math.max((clientY - rect.top) / rect.height, 0), 1);
       return {
         x: view.x + relX * view.w,
         y: view.y + relY * view.h
       };
     }
 
-    // Koordinaten-Umrechnung (Original-Bild -> Canvas Pixel)
     function imageToCanvasCoords(pt) {
       return {
         x: ((pt.x - view.x) / view.w) * canvas.width,
@@ -382,9 +397,8 @@
       };
     }
 
-    // Pointer Events für Zoom & Klicks
     canvas.addEventListener('pointerdown', (e) => {
-      if (!imgElement.src) return;
+      if (!imgElement) return;
       const imgPt = canvasToImageCoords(e.clientX, e.clientY);
 
       if (currentMode === 'zoom') {
@@ -394,7 +408,6 @@
         return;
       }
 
-      // Klickaktionen für die anderen Modi
       if (currentMode === 'align') {
         let closest = null;
         let minDist = (30 / canvas.width) * view.w;
@@ -408,8 +421,8 @@
         } else if (alignCorners.length < 4) {
           alignCorners.push(imgPt);
           activePointRef = imgPt;
-          const names = ['P2 (TR)', 'P3 (BR)', 'P4 (BL)', 'Ausrichtung komplett'];
-          document.getElementById('status-desc').innerText = `Gesetzt! Nächster Punkt: ${names[alignCorners.length - 1]}`;
+          const names = ['P2 (TR)', 'P3 (BR)', 'P4 (BL)', 'Bereit zum Geraderücken'];
+          document.getElementById('status-desc').innerText = `P${alignCorners.length} gesetzt! Nächster: ${names[alignCorners.length - 1]}`;
         } else {
           let closestAny = alignCorners[0];
           let dMin = Math.hypot(alignCorners[0].x - imgPt.x, alignCorners[0].y - imgPt.y);
@@ -435,7 +448,7 @@
           document.getElementById('status-desc').innerText = 'Klicke auf Y-Max.';
         } else if (calibStep === 3) {
           calibPoints.y2 = imgPt; calibStep = 0;
-          document.getElementById('status-desc').innerText = 'Kalibriert! Wechsle zu "3. Punkte".';
+          document.getElementById('status-desc').innerText = 'Kalibrierung komplett! Wähle "3. Punkte".';
         }
       } 
       else if (currentMode === 'data') {
@@ -464,7 +477,6 @@
         const w = xMax - xMin;
         const h = yMax - yMin;
 
-        // Nur zoomen wenn ein echtes Rechteck gezogen wurde
         if (w > 10 && h > 10) {
           view = {
             x: Math.max(0, xMin),
@@ -491,10 +503,10 @@
     };
 
     function redraw() {
-      if (!imgElement.src) return;
+      if (!imgElement) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Zeichne aktuellen Ausschnitt des Bildes
+      // Bildausschnitt rendern
       ctx.drawImage(
         imgElement,
         view.x, view.y, view.w, view.h,
@@ -531,7 +543,7 @@
         drawMarker(p, '#ef4444', `${idx+1}`, p === activePointRef);
       });
 
-      // Zoom-Rechteck zeichnen
+      // Zoom-Rechteck
       if (currentMode === 'zoom' && zoomDragStart && currentDragPos) {
         const p1 = imageToCanvasCoords(zoomDragStart);
         const p2 = imageToCanvasCoords(currentDragPos);
@@ -565,7 +577,7 @@
     }
 
     function applyPerspectiveWarp() {
-      if (alignCorners.length < 4 || !imgElement.src) {
+      if (alignCorners.length < 4 || !imgElement) {
         alert('Bitte zuerst alle 4 Ecken P1 bis P4 setzen!');
         return;
       }
@@ -599,4 +611,12 @@
         if (delta === 0) { offCtx.restore(); return; }
 
         const a = (x0 * (v1 - v2) - x1 * (v0 - v2) + x2 * (v0 - v1)) / delta;
-        const b = (u0 * (x1 -
+        const b = (u0 * (x1 - x2) - u1 * (x0 - x2) + u2 * (x0 - x1)) / delta;
+        const c = x0 - a * u0 - b * v0;
+
+        const d = (y0 * (v1 - v2) - y1 * (v0 - v2) + y2 * (v0 - v1)) / delta;
+        const e = (u0 * (y1 - y2) - u1 * (y0 - y2) + u2 * (y0 - y1)) / delta;
+        const f = y0 - d * u0 - e * v0;
+
+        const det = a * e - b * d;
+        if (det ===
