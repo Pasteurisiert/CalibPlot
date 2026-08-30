@@ -38,23 +38,12 @@
       user-select: none;
     }
     button.active-mode {
-      background: #f59e0b;
-      color: #000;
+      background: #f59e0b !important;
+      color: #000 !important;
       font-weight: 700;
     }
     button:disabled { background: #52525b; cursor: not-allowed; }
     input[type="file"] { display: none; }
-
-    .zoom-controls {
-      display: flex;
-      gap: 4px;
-      background: #18181b;
-      padding: 3px 6px;
-      border-radius: 6px;
-      border: 1px solid #3f3f46;
-      align-items: center;
-    }
-    .zoom-controls span { font-size: 11px; color: #a1a1aa; min-width: 36px; text-align: center; }
 
     #main-container {
       display: flex;
@@ -67,7 +56,7 @@
       flex: 1;
       position: relative;
       background: #09090b;
-      overflow: auto; /* Erlaubt Panning bei hohem Zoom */
+      overflow: hidden;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -78,8 +67,6 @@
       touch-action: none;
       box-shadow: 0 0 15px rgba(0,0,0,0.8);
       background: #18181b;
-      transform-origin: center center;
-      transition: width 0.1s ease, height 0.1s ease;
     }
 
     #sidebar {
@@ -182,19 +169,14 @@
     <label class="btn" for="fileInput">📁 Bild</label>
     <input type="file" id="fileInput" accept="image/*" capture="environment">
     
+    <button id="modeZoomBtn" onclick="setMode('zoom')" style="background:#0284c7;">🔍 Rechteck-Zoom</button>
+    <button onclick="resetZoom()" style="background:#4b5563;">🖼️ Vollansicht</button>
+    
     <button id="modeAlignBtn" onclick="setMode('align')">📐 1. Ausrichten</button>
     <button id="modeCalibBtn" onclick="setMode('calib')">🎯 2. Kalibrieren</button>
     <button id="modeDataBtn" onclick="setMode('data')">📈 3. Punkte</button>
     
     <button id="btnWarp" style="background:#10b981;" onclick="applyPerspectiveWarp()">Geraderücken</button>
-    
-    <div class="zoom-controls">
-      <button onclick="changeZoom(-0.25)">🔍-</button>
-      <span id="zoomLabel">Fit</span>
-      <button onclick="changeZoom(0.25)">🔍+</button>
-      <button onclick="resetZoom()">100%</button>
-    </div>
-
     <button id="btnExport" style="background:#8b5cf6;" onclick="exportCSV()">CSV</button>
   </header>
 
@@ -218,7 +200,7 @@
     <div id="sidebar">
       <div class="panel">
         <h3 id="panel-title">Modus: 1. Ausrichten</h3>
-        <p class="status-msg" id="status-desc">Klicke 4 Ecken: Oben-Links (P1), Oben-Rechts (P2), Unten-Rechts (P3), Unten-Links (P4).</p>
+        <p class="status-msg" id="status-desc">Klicke 4 Ecken: P1 (TL), P2 (TR), P3 (BR), P4 (BL).</p>
       </div>
 
       <div class="panel">
@@ -267,15 +249,14 @@
     let imgElement = new Image();
     let currentMode = 'align';
     let activePointRef = null;
-    let stepSize = 1; // 1px oder 10px
-    let currentZoom = 1.0;
-    let isFitToScreen = true;
+    let stepSize = 1;
 
-    // 4 Ecken fürs Entzerren [P1, P2, P3, P4]
+    // Viewport & Zoom (in Bildkoordinaten)
+    let view = { x: 0, y: 0, w: 0, h: 0 };
+    let zoomDragStart = null;
+    let currentDragPos = null;
+
     let alignCorners = [];
-    let alignStep = 0;
-
-    // Kalibrier-Punkte: { x1, x2, y1, y2 }
     let calibPoints = { x1: null, x2: null, y1: null, y2: null };
     let calibStep = 0;
     let dataPoints = [];
@@ -306,15 +287,12 @@
 
           imgElement = new Image();
           imgElement.onload = () => {
-            canvas.width = w;
-            canvas.height = h;
             alignCorners = [];
-            alignStep = 0;
             calibPoints = { x1: null, x2: null, y1: null, y2: null };
             dataPoints = [];
             updateTable();
+            resetZoom();
             setMode('align');
-            fitToScreen();
           };
           imgElement.src = offCanvas.toDataURL('image/jpeg', 0.92);
         };
@@ -323,51 +301,30 @@
       reader.readAsDataURL(file);
     });
 
-    // Zoom-Funktionen
-    function updateCanvasSize() {
+    function resetZoom() {
       if (!imgElement.src) return;
-      if (isFitToScreen) {
-        const cWidth = container.clientWidth - 20;
-        const cHeight = container.clientHeight - 20;
-        const scale = Math.min(cWidth / imgElement.width, cHeight / imgElement.height);
-        canvas.style.width = `${Math.round(imgElement.width * scale)}px`;
-        canvas.style.height = `${Math.round(imgElement.height * scale)}px`;
-        document.getElementById('zoomLabel').innerText = 'Fit';
-      } else {
-        canvas.style.width = `${Math.round(imgElement.width * currentZoom)}px`;
-        canvas.style.height = `${Math.round(imgElement.height * currentZoom)}px`;
-        document.getElementById('zoomLabel').innerText = `${Math.round(currentZoom * 100)}%`;
-      }
+      view = { x: 0, y: 0, w: imgElement.width, h: imgElement.height };
+      resizeCanvasToFit();
       redraw();
     }
 
-    function fitToScreen() {
-      isFitToScreen = true;
-      updateCanvasSize();
-    }
-
-    function changeZoom(delta) {
-      if (isFitToScreen) {
-        currentZoom = parseFloat((canvas.clientWidth / imgElement.width).toFixed(2));
-        isFitToScreen = false;
-      }
-      currentZoom = Math.min(Math.max(0.25, currentZoom + delta), 4.0);
-      updateCanvasSize();
-    }
-
-    function resetZoom() {
-      isFitToScreen = false;
-      currentZoom = 1.0;
-      updateCanvasSize();
+    function resizeCanvasToFit() {
+      if (!imgElement.src) return;
+      const cWidth = container.clientWidth - 20;
+      const cHeight = container.clientHeight - 20;
+      const scale = Math.min(cWidth / view.w, cHeight / view.h);
+      canvas.width = Math.round(view.w * scale);
+      canvas.height = Math.round(view.h * scale);
     }
 
     window.addEventListener('resize', () => {
-      if (isFitToScreen) updateCanvasSize();
+      resizeCanvasToFit();
+      redraw();
     });
 
-    // Modus Umschaltung
     function setMode(mode) {
       currentMode = mode;
+      document.getElementById('modeZoomBtn').classList.toggle('active-mode', mode === 'zoom');
       document.getElementById('modeAlignBtn').classList.toggle('active-mode', mode === 'align');
       document.getElementById('modeCalibBtn').classList.toggle('active-mode', mode === 'calib');
       document.getElementById('modeDataBtn').classList.toggle('active-mode', mode === 'data');
@@ -375,103 +332,155 @@
       const title = document.getElementById('panel-title');
       const desc = document.getElementById('status-desc');
 
-      if (mode === 'align') {
+      if (mode === 'zoom') {
+        title.innerText = 'Modus: 🔍 Rechteck-Zoom';
+        desc.innerText = 'Ziehe mit der Maus/Touch ein Rechteck über den Bereich, den du vergrößern möchtest.';
+      } else if (mode === 'align') {
         title.innerText = 'Modus: 1. Ausrichten';
-        desc.innerText = 'Klicke nacheinander auf: P1 (Oben-Links), P2 (Oben-Rechts), P3 (Unten-Rechts), P4 (Unten-Links).';
+        desc.innerText = 'Klicke nacheinander auf: P1 (TL), P2 (TR), P3 (BR), P4 (BL).';
       } else if (mode === 'calib') {
         title.innerText = 'Modus: 2. Kalibrieren';
         calibStep = 0;
         desc.innerText = 'Klicke nacheinander: 1. X-Min, 2. X-Max, 3. Y-Min, 4. Y-Max.';
       } else if (mode === 'data') {
         title.innerText = 'Modus: 3. Datenpunkte';
-        desc.innerText = 'Klicke Datenpunkte an. Justiere mit Pfeilkreuz oder Tastatur-Pfeilen.';
+        desc.innerText = 'Klicke Datenpunkte an. Justiere mit Pfeilkreuz oder Tastatur.';
       }
       redraw();
     }
 
-    // Step-Size Toggle
     window.toggleStepSize = function() {
       stepSize = (stepSize === 1) ? 10 : 1;
       document.getElementById('stepToggleBtn').innerText = `${stepSize}px`;
     };
 
-    // Tastatursteuerung
     window.addEventListener('keydown', (e) => {
       if (!activePointRef) return;
       let mult = e.shiftKey ? 10 : stepSize;
-
       if (e.key === 'ArrowUp') { nudge(0, -1, mult); e.preventDefault(); }
       else if (e.key === 'ArrowDown') { nudge(0, 1, mult); e.preventDefault(); }
       else if (e.key === 'ArrowLeft') { nudge(-1, 0, mult); e.preventDefault(); }
       else if (e.key === 'ArrowRight') { nudge(1, 0, mult); e.preventDefault(); }
     });
 
-    // Pointer Interaktion
+    // Koordinaten-Umrechnung (Canvas -> Original-Bild)
+    function canvasToImageCoords(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const relX = (clientX - rect.left) / rect.width;
+      const relY = (clientY - rect.top) / rect.height;
+      return {
+        x: view.x + relX * view.w,
+        y: view.y + relY * view.h
+      };
+    }
+
+    // Koordinaten-Umrechnung (Original-Bild -> Canvas Pixel)
+    function imageToCanvasCoords(pt) {
+      return {
+        x: ((pt.x - view.x) / view.w) * canvas.width,
+        y: ((pt.y - view.y) / view.h) * canvas.height
+      };
+    }
+
+    // Pointer Events für Zoom & Klicks
     canvas.addEventListener('pointerdown', (e) => {
       if (!imgElement.src) return;
+      const imgPt = canvasToImageCoords(e.clientX, e.clientY);
 
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const x = (e.clientX - rect.left) * scaleX;
-      const y = (e.clientY - rect.top) * scaleY;
-      const pt = { x, y };
+      if (currentMode === 'zoom') {
+        zoomDragStart = imgPt;
+        currentDragPos = imgPt;
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
 
+      // Klickaktionen für die anderen Modi
       if (currentMode === 'align') {
-        // Bestehenden Punkt auswählen, falls nah geklickt
         let closest = null;
-        let minDist = 30 * scaleX;
+        let minDist = (30 / canvas.width) * view.w;
         alignCorners.forEach(c => {
-          const d = Math.hypot(c.x - x, c.y - y);
+          const d = Math.hypot(c.x - imgPt.x, c.y - imgPt.y);
           if (d < minDist) { minDist = d; closest = c; }
         });
 
         if (closest) {
           activePointRef = closest;
         } else if (alignCorners.length < 4) {
-          alignCorners.push(pt);
-          activePointRef = pt;
-          const names = ['P2 (Oben-Rechts)', 'P3 (Unten-Rechts)', 'P4 (Unten-Links)', 'Ausrichtung komplett'];
-          document.getElementById('status-desc').innerText = `Gesetzt! Als Nächstes: ${names[alignCorners.length - 1]}`;
+          alignCorners.push(imgPt);
+          activePointRef = imgPt;
+          const names = ['P2 (TR)', 'P3 (BR)', 'P4 (BL)', 'Ausrichtung komplett'];
+          document.getElementById('status-desc').innerText = `Gesetzt! Nächster Punkt: ${names[alignCorners.length - 1]}`;
         } else {
-          // Alle 4 existieren bereits -> Ersetze nächsten Punkt
           let closestAny = alignCorners[0];
-          let dMin = Math.hypot(alignCorners[0].x - x, alignCorners[0].y - y);
+          let dMin = Math.hypot(alignCorners[0].x - imgPt.x, alignCorners[0].y - imgPt.y);
           for (let i = 1; i < 4; i++) {
-            const d = Math.hypot(alignCorners[i].x - x, alignCorners[i].y - y);
+            const d = Math.hypot(alignCorners[i].x - imgPt.x, alignCorners[i].y - imgPt.y);
             if (d < dMin) { dMin = d; closestAny = alignCorners[i]; }
           }
-          closestAny.x = x;
-          closestAny.y = y;
+          closestAny.x = imgPt.x;
+          closestAny.y = imgPt.y;
           activePointRef = closestAny;
         }
       } 
       else if (currentMode === 'calib') {
-        activePointRef = pt;
+        activePointRef = imgPt;
         if (calibStep === 0) {
-          calibPoints.x1 = pt; calibStep = 1;
+          calibPoints.x1 = imgPt; calibStep = 1;
           document.getElementById('status-desc').innerText = 'Klicke auf X-Max.';
         } else if (calibStep === 1) {
-          calibPoints.x2 = pt; calibStep = 2;
+          calibPoints.x2 = imgPt; calibStep = 2;
           document.getElementById('status-desc').innerText = 'Klicke auf Y-Min.';
         } else if (calibStep === 2) {
-          calibPoints.y1 = pt; calibStep = 3;
+          calibPoints.y1 = imgPt; calibStep = 3;
           document.getElementById('status-desc').innerText = 'Klicke auf Y-Max.';
         } else if (calibStep === 3) {
-          calibPoints.y2 = pt; calibStep = 0;
-          document.getElementById('status-desc').innerText = 'Kalibrierung beendet! Wechsle zu "3. Punkte".';
+          calibPoints.y2 = imgPt; calibStep = 0;
+          document.getElementById('status-desc').innerText = 'Kalibriert! Wechsle zu "3. Punkte".';
         }
       } 
       else if (currentMode === 'data') {
-        dataPoints.push(pt);
-        activePointRef = pt;
+        dataPoints.push(imgPt);
+        activePointRef = imgPt;
         updateTable();
       }
 
       redraw();
     });
 
-    // Steuerkreuz Aktion
+    canvas.addEventListener('pointermove', (e) => {
+      if (currentMode === 'zoom' && zoomDragStart) {
+        currentDragPos = canvasToImageCoords(e.clientX, e.clientY);
+        redraw();
+      }
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+      if (currentMode === 'zoom' && zoomDragStart && currentDragPos) {
+        const xMin = Math.min(zoomDragStart.x, currentDragPos.x);
+        const xMax = Math.max(zoomDragStart.x, currentDragPos.x);
+        const yMin = Math.min(zoomDragStart.y, currentDragPos.y);
+        const yMax = Math.max(zoomDragStart.y, currentDragPos.y);
+
+        const w = xMax - xMin;
+        const h = yMax - yMin;
+
+        // Nur zoomen wenn ein echtes Rechteck gezogen wurde
+        if (w > 10 && h > 10) {
+          view = {
+            x: Math.max(0, xMin),
+            y: Math.max(0, yMin),
+            w: Math.min(imgElement.width - xMin, w),
+            h: Math.min(imgElement.height - yMin, h)
+          };
+          resizeCanvasToFit();
+        }
+
+        zoomDragStart = null;
+        currentDragPos = null;
+        redraw();
+      }
+    });
+
     window.nudge = function(dx, dy, customStep) {
       if (!activePointRef) return;
       const s = customStep || stepSize;
@@ -484,15 +493,25 @@
     function redraw() {
       if (!imgElement.src) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(imgElement, 0, 0);
+
+      // Zeichne aktuellen Ausschnitt des Bildes
+      ctx.drawImage(
+        imgElement,
+        view.x, view.y, view.w, view.h,
+        0, 0, canvas.width, canvas.height
+      );
 
       // Ecken zeichnen
-      if (currentMode === 'align' && alignCorners.length > 0) {
+      if (alignCorners.length > 0) {
         ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(alignCorners[0].x, alignCorners[0].y);
-        for (let i = 1; i < alignCorners.length; i++) ctx.lineTo(alignCorners[i].x, alignCorners[i].y);
+        const start = imageToCanvasCoords(alignCorners[0]);
+        ctx.moveTo(start.x, start.y);
+        for (let i = 1; i < alignCorners.length; i++) {
+          const pt = imageToCanvasCoords(alignCorners[i]);
+          ctx.lineTo(pt.x, pt.y);
+        }
         if (alignCorners.length === 4) ctx.closePath();
         ctx.stroke();
 
@@ -511,9 +530,23 @@
       dataPoints.forEach((p, idx) => {
         drawMarker(p, '#ef4444', `${idx+1}`, p === activePointRef);
       });
+
+      // Zoom-Rechteck zeichnen
+      if (currentMode === 'zoom' && zoomDragStart && currentDragPos) {
+        const p1 = imageToCanvasCoords(zoomDragStart);
+        const p2 = imageToCanvasCoords(currentDragPos);
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+        ctx.fillStyle = 'rgba(2, 132, 199, 0.15)';
+        ctx.fillRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+        ctx.setLineDash([]);
+      }
     }
 
-    function drawMarker(pt, color, label, isActive) {
+    function drawMarker(imgPt, color, label, isActive) {
+      const pt = imageToCanvasCoords(imgPt);
       ctx.strokeStyle = isActive ? '#ffffff' : color;
       ctx.fillStyle = color;
       ctx.lineWidth = isActive ? 3 : 2;
@@ -531,7 +564,6 @@
       ctx.fillText(label, pt.x + 8, pt.y - 8);
     }
 
-    // Hardware-beschleunigtes Entzerren
     function applyPerspectiveWarp() {
       if (alignCorners.length < 4 || !imgElement.src) {
         alert('Bitte zuerst alle 4 Ecken P1 bis P4 setzen!');
@@ -567,81 +599,4 @@
         if (delta === 0) { offCtx.restore(); return; }
 
         const a = (x0 * (v1 - v2) - x1 * (v0 - v2) + x2 * (v0 - v1)) / delta;
-        const b = (u0 * (x1 - x2) - u1 * (x0 - x2) + u2 * (x0 - x1)) / delta;
-        const c = x0 - a * u0 - b * v0;
-
-        const d = (y0 * (v1 - v2) - y1 * (v0 - v2) + y2 * (v0 - v1)) / delta;
-        const e = (u0 * (y1 - y2) - u1 * (y0 - y2) + u2 * (y0 - y1)) / delta;
-        const f = y0 - d * u0 - e * v0;
-
-        const det = a * e - b * d;
-        if (det === 0) { offCtx.restore(); return; }
-
-        offCtx.transform(e / det, -d / det, -b / det, a / det, (b * f - c * e) / det, (c * d - a * f) / det);
-        offCtx.drawImage(imgElement, 0, 0);
-        offCtx.restore();
-      }
-
-      mapTriangle([p0, p1, p3], [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: 0, y: h }]);
-      mapTriangle([p1, p2, p3], [{ x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }]);
-
-      const warpedImg = new Image();
-      warpedImg.onload = () => {
-        imgElement = warpedImg;
-        canvas.width = warpedImg.width;
-        canvas.height = warpedImg.height;
-        alignCorners = [];
-        setMode('calib');
-        fitToScreen();
-      };
-      warpedImg.src = offCanvas.toDataURL('image/jpeg', 0.95);
-    }
-
-    function calculateCoords(pt) {
-      if (!calibPoints.x1 || !calibPoints.x2 || !calibPoints.y1 || !calibPoints.y2) return { x: '–', y: '–' };
-
-      const xMin = parseFloat(document.getElementById('xMinVal').value);
-      const xMax = parseFloat(document.getElementById('xMaxVal').value);
-      const yMin = parseFloat(document.getElementById('yMinVal').value);
-      const yMax = parseFloat(document.getElementById('yMaxVal').value);
-
-      const realX = xMin + ((pt.x - calibPoints.x1.x) / (calibPoints.x2.x - calibPoints.x1.x)) * (xMax - xMin);
-      const realY = yMin + ((pt.y - calibPoints.y1.y) / (calibPoints.y2.y - calibPoints.y1.y)) * (yMax - yMin);
-
-      return { x: realX.toFixed(3), y: realY.toFixed(3) };
-    }
-
-    function updateTable() {
-      const tbody = document.querySelector('#dataTable tbody');
-      tbody.innerHTML = '';
-      dataPoints.forEach((pt, i) => {
-        const val = calculateCoords(pt);
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${i + 1}</td><td>${val.x}</td><td>${val.y}</td>`;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function clearDataPoints() {
-      dataPoints = [];
-      activePointRef = null;
-      updateTable();
-      redraw();
-    }
-
-    function exportCSV() {
-      if (dataPoints.length === 0) return;
-      let csv = 'Punkt,X,Y\n';
-      dataPoints.forEach((pt, i) => {
-        const val = calculateCoords(pt);
-        csv += `${i + 1},${val.x},${val.y}\n`;
-      });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'diagramm_daten.csv';
-      link.click();
-    }
-  </script>
-</body>
-</html>
+        const b = (u0 * (x1 -
