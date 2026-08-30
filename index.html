@@ -645,4 +645,297 @@
     canvas.addEventListener('pointermove', (e) => {
       if (isPanning) {
         const dx = (e.clientX - panStart.x) * (view.w / canvas.width);
-        const dy = (e.clientY - panStart.y)
+        const dy = (e.clientY - panStart.y) * (view.h / canvas.height);
+        view.x -= dx;
+        view.y -= dy;
+        clampView();
+        panStart = { x: e.clientX, y: e.clientY };
+        redraw();
+        return;
+      }
+      if (currentMode === 'zoom' && zoomDragStart) {
+        currentDragPos = canvasToImageCoords(e.clientX, e.clientY);
+        redraw();
+      }
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+      if (isPanning) { isPanning = false; return; }
+      if (currentMode === 'zoom' && zoomDragStart && currentDragPos) {
+        const xMin = Math.min(zoomDragStart.x, currentDragPos.x);
+        const xMax = Math.max(zoomDragStart.x, currentDragPos.x);
+        const yMin = Math.min(zoomDragStart.y, currentDragPos.y);
+        const yMax = Math.max(zoomDragStart.y, currentDragPos.y);
+
+        const w = xMax - xMin;
+        const h = yMax - yMin;
+
+        if (w > 10 && h > 10) {
+          view = { x: xMin, y: yMin, w: w, h: h };
+          clampView();
+          resizeCanvasToFit();
+        }
+        zoomDragStart = null;
+        currentDragPos = null;
+        redraw();
+      }
+    });
+
+    function findClosest(pt, list, maxDist) {
+      let closest = null;
+      let minD = maxDist;
+      list.forEach(item => {
+        const d = Math.hypot(item.x - pt.x, item.y - pt.y);
+        if (d < minD) { minD = d; closest = item; }
+      });
+      return closest;
+    }
+
+    function handlePointSelection(index, isShift, isCtrl) {
+      if (isShift && lastSelectedIndex !== null) {
+        const start = Math.min(lastSelectedIndex, index);
+        const end = Math.max(lastSelectedIndex, index);
+        selectedIndices.clear();
+        for (let i = start; i <= end; i++) selectedIndices.add(i);
+      } else if (isCtrl) {
+        if (selectedIndices.has(index)) selectedIndices.delete(index);
+        else selectedIndices.add(index);
+        lastSelectedIndex = index;
+      } else {
+        selectedIndices.clear();
+        selectedIndices.add(index);
+        lastSelectedIndex = index;
+      }
+      updateTableHighlight();
+      redraw();
+    }
+
+    window.nudge = function(dx, dy, customStep) {
+      if (!activePointRef) return;
+      const s = customStep || stepSize;
+      activePointRef.x += dx * s;
+      activePointRef.y += dy * s;
+      redraw();
+      if (currentMode === 'data') updateTable();
+    };
+
+    function redraw() {
+      if (!currentImage) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.drawImage(
+        currentImage,
+        view.x, view.y, view.w, view.h,
+        0, 0, canvas.width, canvas.height
+      );
+
+      // Ausrichten
+      if (alignCorners.length > 0) {
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const start = imageToCanvasCoords(alignCorners[0]);
+        ctx.moveTo(start.x, start.y);
+        for (let i = 1; i < alignCorners.length; i++) {
+          const pt = imageToCanvasCoords(alignCorners[i]);
+          ctx.lineTo(pt.x, pt.y);
+        }
+        if (alignCorners.length === 4) ctx.closePath();
+        ctx.stroke();
+
+        alignCorners.forEach((c, idx) => {
+          drawMarker(c, '#f59e0b', `P${idx+1}`, c === activePointRef);
+        });
+      }
+
+      // Kalibrier-Punkte
+      if (calibPoints.x1) drawMarker(calibPoints.x1, '#3b82f6', 'X-Min', calibPoints.x1 === activePointRef);
+      if (calibPoints.x2) drawMarker(calibPoints.x2, '#3b82f6', 'X-Max', calibPoints.x2 === activePointRef);
+      if (calibPoints.y1) drawMarker(calibPoints.y1, '#10b981', 'Y-Min', calibPoints.y1 === activePointRef);
+      if (calibPoints.y2) drawMarker(calibPoints.y2, '#10b981', 'Y-Max', calibPoints.y2 === activePointRef);
+
+      // Datenpunkte
+      dataPoints.forEach((p, idx) => {
+        const isSelected = selectedIndices.has(idx);
+        drawMarker(p, isSelected ? '#fbbf24' : '#ef4444', `${idx+1}`, p === activePointRef || isSelected);
+      });
+
+      // Zoom-Rechteck
+      if (currentMode === 'zoom' && zoomDragStart && currentDragPos) {
+        const p1 = imageToCanvasCoords(zoomDragStart);
+        const p2 = imageToCanvasCoords(currentDragPos);
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+        ctx.fillStyle = 'rgba(2, 132, 199, 0.15)';
+        ctx.fillRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+        ctx.setLineDash([]);
+      }
+    }
+
+    function drawMarker(imgPt, color, label, isActive) {
+      const pt = imageToCanvasCoords(imgPt);
+      ctx.strokeStyle = isActive ? '#ffffff' : color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = isActive ? 3 : 2;
+
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, isActive ? 7 : 5, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(pt.x - 10, pt.y); ctx.lineTo(pt.x + 10, pt.y);
+      ctx.moveTo(pt.x, pt.y - 10); ctx.lineTo(pt.x, pt.y + 10);
+      ctx.stroke();
+
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText(label, pt.x + 8, pt.y - 8);
+    }
+
+    function applyPerspectiveWarp() {
+      if (alignCorners.length < 4 || !currentImage) {
+        alert('Bitte zuerst alle 4 Ecken P1 bis P4 setzen!');
+        return;
+      }
+
+      previousAlignCorners = JSON.parse(JSON.stringify(alignCorners));
+
+      const [p0, p1, p2, p3] = alignCorners;
+      const w = Math.round(Math.max(Math.hypot(p1.x - p0.x, p1.y - p0.y), Math.hypot(p2.x - p3.x, p2.y - p3.y)));
+      const h = Math.round(Math.max(Math.hypot(p3.x - p0.x, p3.y - p0.y), Math.hypot(p2.x - p1.x, p2.y - p1.y)));
+
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = w;
+      offCanvas.height = h;
+      const offCtx = offCanvas.getContext('2d');
+
+      function mapTriangle(srcTri, dstTri) {
+        offCtx.save();
+        offCtx.beginPath();
+        offCtx.moveTo(dstTri[0].x, dstTri[0].y);
+        offCtx.lineTo(dstTri[1].x, dstTri[1].y);
+        offCtx.lineTo(dstTri[2].x, dstTri[2].y);
+        offCtx.closePath();
+        offCtx.clip();
+
+        const x0 = srcTri[0].x, y0 = srcTri[0].y;
+        const x1 = srcTri[1].x, y1 = srcTri[1].y;
+        const x2 = srcTri[2].x, y2 = srcTri[2].y;
+        const u0 = dstTri[0].x, v0 = dstTri[0].y;
+        const u1 = dstTri[1].x, v1 = dstTri[1].y;
+        const u2 = dstTri[2].x, v2 = dstTri[2].y;
+
+        const delta = u0 * (v1 - v2) - u1 * (v0 - v2) + u2 * (v0 - v1);
+        if (delta === 0) { offCtx.restore(); return; }
+
+        const a = (x0 * (v1 - v2) - x1 * (v0 - v2) + x2 * (v0 - v1)) / delta;
+        const b = (u0 * (x1 - x2) - u1 * (x0 - x2) + u2 * (x0 - x1)) / delta;
+        const c = x0 - a * u0 - b * v0;
+
+        const d = (y0 * (v1 - v2) - y1 * (v0 - v2) + y2 * (v0 - v1)) / delta;
+        const e = (u0 * (y1 - y2) - u1 * (y0 - y2) + u2 * (y0 - y1)) / delta;
+        const f = y0 - d * u0 - e * v0;
+
+        const det = a * e - b * d;
+        if (det === 0) { offCtx.restore(); return; }
+
+        offCtx.transform(e / det, -d / det, -b / det, a / det, (b * f - c * e) / det, (c * d - a * f) / det);
+        offCtx.drawImage(currentImage, 0, 0);
+        offCtx.restore();
+      }
+
+      mapTriangle([p0, p1, p3], [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: 0, y: h }]);
+      mapTriangle([p1, p2, p3], [{ x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }]);
+
+      currentImage = offCanvas;
+      alignCorners = [];
+      document.getElementById('btnUndoWarp').disabled = false;
+      resetZoom();
+      setMode('calib');
+    }
+
+    function undoPerspectiveWarp() {
+      if (!rawImage) return;
+      currentImage = rawImage;
+      alignCorners = previousAlignCorners;
+      document.getElementById('btnUndoWarp').disabled = true;
+      resetZoom();
+      setMode('align');
+    }
+
+    function calculateCoords(pt) {
+      if (!calibPoints.x1 || !calibPoints.x2 || !calibPoints.y1 || !calibPoints.y2) return { x: '–', y: '–' };
+
+      const xMin = parseFloat(document.getElementById('xMinVal').value);
+      const xMax = parseFloat(document.getElementById('xMaxVal').value);
+      const yMin = parseFloat(document.getElementById('yMinVal').value);
+      const yMax = parseFloat(document.getElementById('yMaxVal').value);
+
+      const realX = xMin + ((pt.x - calibPoints.x1.x) / (calibPoints.x2.x - calibPoints.x1.x)) * (xMax - xMin);
+      const realY = yMin + ((pt.y - calibPoints.y1.y) / (calibPoints.y2.y - calibPoints.y1.y)) * (yMax - yMin);
+
+      return { x: realX.toFixed(3), y: realY.toFixed(3) };
+    }
+
+    function updateTable() {
+      const tbody = document.querySelector('#dataTable tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      dataPoints.forEach((pt, i) => {
+        const val = calculateCoords(pt);
+        const tr = document.createElement('tr');
+        tr.id = `row-${i}`;
+        if (selectedIndices.has(i)) tr.classList.add('selected-row');
+        tr.innerHTML = `<td>${i + 1}</td><td>${val.x}</td><td>${val.y}</td>`;
+        
+        tr.addEventListener('click', (e) => {
+          handlePointSelection(i, e.shiftKey, e.ctrlKey || e.metaKey);
+          activePointRef = dataPoints[i];
+          redraw();
+        });
+        
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateTableHighlight() {
+      dataPoints.forEach((_, i) => {
+        const row = document.getElementById(`row-${i}`);
+        if (row) row.classList.toggle('selected-row', selectedIndices.has(i));
+      });
+    }
+
+    function deleteSelectedPoints() {
+      if (selectedIndices.size === 0) return;
+      dataPoints = dataPoints.filter((_, idx) => !selectedIndices.has(idx));
+      selectedIndices.clear();
+      activePointRef = null;
+      updateTable();
+      redraw();
+    }
+
+    function clearDataPoints() {
+      dataPoints = [];
+      selectedIndices.clear();
+      activePointRef = null;
+      updateTable();
+      redraw();
+    }
+
+    function exportCSV() {
+      if (dataPoints.length === 0) return;
+      let csv = 'Punkt,X,Y\n';
+      dataPoints.forEach((pt, i) => {
+        const val = calculateCoords(pt);
+        csv += `${i + 1},${val.x},${val.y}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'diagramm_daten.csv';
+      link.click();
+    }
+  </script>
+</body>
+</html>
