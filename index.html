@@ -153,25 +153,54 @@
       text-align: right;
     }
 
-    /* Steuerkreuz */
-    #nudge-pad {
+    /* Frei verschiebbares Floating-Steuerkreuz */
+    #floating-nudge-pad {
       position: absolute;
-      bottom: 14px;
-      left: 14px;
-      background: rgba(24, 24, 27, 0.9);
+      bottom: 20px;
+      right: 20px;
+      background: rgba(24, 24, 27, 0.92);
       border: 1px solid #52525b;
-      border-radius: 12px;
-      width: 115px;
-      height: 115px;
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(3, 1fr);
-      padding: 4px;
-      gap: 3px;
-      z-index: 10;
+      border-radius: 10px;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      z-index: 100;
+      touch-action: none;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
     }
+
+    .nudge-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #27272a;
+      padding: 3px 6px;
+      border-top-left-radius: 9px;
+      border-top-right-radius: 9px;
+      cursor: grab;
+      border-bottom: 1px solid #3f3f46;
+    }
+    .nudge-header:active { cursor: grabbing; }
+    .nudge-drag-handle { font-size: 11px; color: #a1a1aa; font-weight: bold; }
+    .nudge-toggle-btn {
+      background: transparent;
+      border: none;
+      color: #a1a1aa;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+
+    .nudge-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 34px);
+      grid-template-rows: repeat(3, 34px);
+      padding: 5px;
+      gap: 3px;
+    }
+
     .nudge-btn {
       background: #3f3f46;
       color: white;
@@ -180,9 +209,9 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 14px;
-      padding: 0;
+      font-size: 13px;
       cursor: pointer;
+      touch-action: manipulation;
     }
     .nudge-btn:active { background: #60a5fa; }
     .nudge-step-btn {
@@ -215,7 +244,7 @@
     @media (max-width: 850px) {
       #main-container { flex-direction: column; }
       #sidebar { width: 100%; height: 260px; border-left: none; border-top: 1px solid #3f3f46; }
-      #nudge-pad { bottom: 8px; left: 8px; width: 95px; height: 95px; }
+      #floating-nudge-pad { bottom: 10px; right: 10px; }
     }
   </style>
 </head>
@@ -243,16 +272,22 @@
     <div id="canvas-container">
       <canvas id="canvas"></canvas>
       
-      <div id="nudge-pad">
-        <div></div>
-        <button class="nudge-btn" onclick="nudge(0, -1)">▲</button>
-        <div></div>
-        <button class="nudge-btn" onclick="nudge(-1, 0)">◀</button>
-        <button class="nudge-step-btn" id="stepToggleBtn" onclick="toggleStepSize()">1px</button>
-        <button class="nudge-btn" onclick="nudge(1, 0)">▶</button>
-        <div></div>
-        <button class="nudge-btn" onclick="nudge(0, 1)">▼</button>
-        <div></div>
+      <div id="floating-nudge-pad">
+        <div class="nudge-header" id="nudge-drag-bar">
+          <span class="nudge-drag-handle">⠿ Feinjustierung</span>
+          <button class="nudge-toggle-btn" onclick="toggleNudgePad()" title="Ein-/Ausklappen">_</button>
+        </div>
+        <div class="nudge-grid" id="nudge-body">
+          <div></div>
+          <button class="nudge-btn" onclick="nudge(0, -1)">▲</button>
+          <div></div>
+          <button class="nudge-btn" onclick="nudge(-1, 0)">◀</button>
+          <button class="nudge-step-btn" id="stepToggleBtn" onclick="toggleStepSize()">1px</button>
+          <button class="nudge-btn" onclick="nudge(1, 0)">▶</button>
+          <div></div>
+          <button class="nudge-btn" onclick="nudge(0, 1)">▼</button>
+          <div></div>
+        </div>
       </div>
     </div>
 
@@ -286,7 +321,7 @@
           </div>
           <div class="input-group">
             <label>Y-Max Wert</label>
-            <input type="number" id="yMaxVal" value="10" oninput="updateTable()">
+            <input type="number" id="yMaxVal" value="10">
           </div>
         </div>
       </div>
@@ -349,7 +384,55 @@
 
     const MAX_DIMENSION = 1800;
 
-    // iPad / iOS kompatibler Bildlader
+    // -------------------------------------------------------------
+    // DRAG & DROP FÜR DAS SCHWEBENDE STEUERKREUZ
+    // -------------------------------------------------------------
+    const nudgePad = document.getElementById('floating-nudge-pad');
+    const dragBar = document.getElementById('nudge-drag-bar');
+    let isDraggingPad = false;
+    let dragOffset = { x: 0, y: 0 };
+
+    dragBar.addEventListener('pointerdown', (e) => {
+      isDraggingPad = true;
+      const rect = nudgePad.getBoundingClientRect();
+      dragOffset.x = e.clientX - rect.left;
+      dragOffset.y = e.clientY - rect.top;
+      dragBar.setPointerCapture(e.pointerId);
+      e.stopPropagation();
+    });
+
+    dragBar.addEventListener('pointermove', (e) => {
+      if (!isDraggingPad) return;
+      const containerRect = container.getBoundingClientRect();
+      let newX = e.clientX - containerRect.left - dragOffset.x;
+      let newY = e.clientY - containerRect.top - dragOffset.y;
+
+      // Begrenzung innerhalb des Canvas-Containers
+      newX = Math.max(10, Math.min(containerRect.width - nudgePad.offsetWidth - 10, newX));
+      newY = Math.max(10, Math.min(containerRect.height - nudgePad.offsetHeight - 10, newY));
+
+      nudgePad.style.left = `${newX}px`;
+      nudgePad.style.top = `${newY}px`;
+      nudgePad.style.right = 'auto';
+      nudgePad.style.bottom = 'auto';
+      e.stopPropagation();
+    });
+
+    dragBar.addEventListener('pointerup', () => { isDraggingPad = false; });
+    dragBar.addEventListener('pointercancel', () => { isDraggingPad = false; });
+
+    let isNudgeCollapsed = false;
+    window.toggleNudgePad = function() {
+      const body = document.getElementById('nudge-body');
+      const btn = dragBar.querySelector('.nudge-toggle-btn');
+      isNudgeCollapsed = !isNudgeCollapsed;
+      body.style.display = isNudgeCollapsed ? 'none' : 'grid';
+      btn.innerText = isNudgeCollapsed ? '+' : '_';
+    };
+
+    // -------------------------------------------------------------
+    // BILDLADER (KOMPATIBEL MIT IPAD & DESKTOP)
+    // -------------------------------------------------------------
     fileInput.addEventListener('change', function(e) {
       const file = this.files && this.files[0];
       if (!file) return;
@@ -397,8 +480,6 @@
         tempImg.src = evt.target.result;
       };
       reader.readAsDataURL(file);
-
-      // Reset erst nach dem Trigger
       setTimeout(() => { fileInput.value = ''; }, 500);
     });
 
@@ -542,7 +623,7 @@
 
     canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-    // Multi-Touch & Pointer Events
+    // Pointer & Multi-Touch Gesten
     canvas.addEventListener('pointerdown', (e) => {
       if (!currentImage) return;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
