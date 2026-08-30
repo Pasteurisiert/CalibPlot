@@ -3,157 +3,182 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Diagramm Digitalisierer</title>
+  <title>Diagramm Digitalisierer Pro</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #1e1e24;
-      color: #e0e0e0;
+      background: #18181b;
+      color: #e4e4e7;
       display: flex;
       flex-direction: column;
       height: 100vh;
       overflow: hidden;
     }
     header {
-      background: #2b2b36;
-      padding: 10px 15px;
+      background: #27272a;
+      padding: 8px 12px;
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 8px;
       align-items: center;
-      border-bottom: 1px solid #3d3d4d;
+      border-bottom: 1px solid #3f3f46;
+      z-index: 20;
     }
     button, label.btn {
-      background: #4460f1;
+      background: #3b82f6;
       color: white;
       border: none;
-      padding: 8px 14px;
+      padding: 7px 12px;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 13px;
+      font-weight: 500;
       touch-action: manipulation;
     }
-    button:disabled { background: #555; cursor: not-allowed; }
+    button.active-mode {
+      background: #f59e0b;
+      color: #000;
+      font-weight: 700;
+    }
+    button:disabled { background: #52525b; cursor: not-allowed; }
     input[type="file"] { display: none; }
-    
+
     #main-container {
       display: flex;
       flex: 1;
       position: relative;
       overflow: hidden;
     }
-    #canvas-wrap {
+
+    #canvas-container {
       flex: 1;
       position: relative;
-      background: #121214;
-      overflow: auto;
+      background: #09090b;
       display: flex;
       justify-content: center;
       align-items: center;
-    }
-    canvas {
-      box-shadow: 0 0 20px rgba(0,0,0,0.6);
-      cursor: crosshair;
-      touch-action: none;
+      overflow: hidden;
     }
 
-    /* Sidebar / Workflow */
+    canvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      cursor: crosshair;
+      touch-action: none;
+      box-shadow: 0 0 15px rgba(0,0,0,0.8);
+    }
+
     #sidebar {
       width: 320px;
-      background: #252530;
-      padding: 15px;
+      background: #27272a;
+      padding: 12px;
       overflow-y: auto;
-      border-left: 1px solid #3d3d4d;
+      border-left: 1px solid #3f3f46;
       display: flex;
       flex-direction: column;
-      gap: 15px;
+      gap: 12px;
     }
+
     .panel {
-      background: #2e2e3d;
-      padding: 12px;
-      border-radius: 8px;
+      background: #18181b;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #3f3f46;
     }
-    .panel h3 { font-size: 15px; margin-bottom: 8px; color: #7aa2f7; }
-    .input-row {
+    .panel h3 { font-size: 14px; margin-bottom: 8px; color: #60a5fa; }
+    .status-msg { font-size: 12px; color: #a1a1aa; margin-bottom: 6px; }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .input-group {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-      font-size: 13px;
+      flex-direction: column;
+      font-size: 11px;
+      color: #a1a1aa;
     }
-    .input-row input {
-      width: 90px;
-      padding: 4px 6px;
+    .input-group input {
+      margin-top: 2px;
+      padding: 5px;
       border-radius: 4px;
-      border: 1px solid #444;
-      background: #1e1e24;
+      border: 1px solid #3f3f46;
+      background: #27272a;
       color: white;
       text-align: right;
     }
 
-    /* Pfeilkreuz Overlay */
+    /* Pfeilkreuz */
     #nudge-pad {
       position: absolute;
-      bottom: 20px;
-      left: 20px;
-      background: rgba(30, 30, 36, 0.85);
-      border: 1px solid #4d4d60;
-      border-radius: 50%;
-      width: 130px;
-      height: 130px;
+      bottom: 16px;
+      left: 16px;
+      background: rgba(24, 24, 27, 0.85);
+      border: 1px solid #52525b;
+      border-radius: 12px;
+      width: 110px;
+      height: 110px;
       backdrop-filter: blur(4px);
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       grid-template-rows: repeat(3, 1fr);
-      padding: 6px;
+      padding: 4px;
+      gap: 3px;
       z-index: 10;
     }
     .nudge-btn {
-      background: #3d3d4d;
+      background: #3f3f46;
       color: white;
-      border: 1px solid #555;
-      border-radius: 6px;
+      border: none;
+      border-radius: 4px;
       display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 16px;
+      font-size: 14px;
+      padding: 0;
       cursor: pointer;
     }
-    .nudge-btn:active { background: #7aa2f7; }
+    .nudge-btn:active { background: #60a5fa; }
     .nudge-center {
       display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 10px;
-      color: #aaa;
+      font-size: 9px;
+      color: #a1a1aa;
     }
 
-    /* Tabelle export */
-    table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 8px; }
-    th, td { border: 1px solid #444; padding: 4px 6px; text-align: right; }
-    th { background: #3d3d4d; }
+    /* Tabelle */
+    table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 6px; }
+    th, td { border: 1px solid #3f3f46; padding: 4px; text-align: right; }
+    th { background: #27272a; }
 
     @media (max-width: 800px) {
-      body { flex-direction: column; }
       #main-container { flex-direction: column; }
-      #sidebar { width: 100%; height: 260px; border-left: none; border-top: 1px solid #3d3d4d; }
-      #nudge-pad { bottom: 10px; left: 10px; width: 100px; height: 100px; }
+      #sidebar { width: 100%; height: 260px; border-left: none; border-top: 1px solid #3f3f46; }
+      #nudge-pad { bottom: 10px; left: 10px; width: 95px; height: 95px; }
     }
   </style>
 </head>
 <body>
 
   <header>
-    <label class="btn" for="fileInput">📁 Bild laden / Kamera</label>
+    <label class="btn" for="fileInput">📁 Bild / Foto</label>
     <input type="file" id="fileInput" accept="image/*" capture="environment">
-    <button id="btnRotate">🔄 90° Drehen</button>
-    <button id="btnClearPoints" style="background:#e05f65;">Punkte leeren</button>
-    <button id="btnExportCSV" style="background:#40a02b;">CSV Export</button>
+    
+    <button id="modeAlignBtn" onclick="setMode('align')">📐 1. Ausrichten</button>
+    <button id="modeCalibBtn" onclick="setMode('calib')">🎯 2. Kalibrieren</button>
+    <button id="modeDataBtn" onclick="setMode('data')">📈 3. Punkte erfassen</button>
+    
+    <button id="btnWarp" style="background:#10b981;" onclick="applyPerspectiveWarp()">Geraderücken</button>
+    <button id="btnExport" style="background:#8b5cf6;" onclick="exportCSV()">CSV Export</button>
   </header>
 
   <div id="main-container">
-    <div id="canvas-wrap">
+    <div id="canvas-container">
       <canvas id="canvas"></canvas>
       
       <div id="nudge-pad">
@@ -171,34 +196,37 @@
 
     <div id="sidebar">
       <div class="panel">
-        <h3>1. X-Achse kalibrieren</h3>
-        <div class="input-row">
-          <span>X1 Wert:</span>
-          <input type="number" id="x1_val" value="0">
-        </div>
-        <div class="input-row">
-          <span>X2 Wert:</span>
-          <input type="number" id="x2_val" value="100">
-        </div>
-        <button id="btnSetX" style="width: 100%; margin-top: 4px;">X1 & X2 setzen</button>
+        <h3 id="panel-title">Modus: Ausrichten</h3>
+        <p class="status-msg" id="status-desc">Klicke 4 Ecken: Oben-Links, Oben-Rechts, Unten-Rechts, Unten-Links.</p>
       </div>
 
       <div class="panel">
-        <h3>2. Y-Achse kalibrieren</h3>
-        <div class="input-row">
-          <span>Y1 Wert (unten):</span>
-          <input type="number" id="y1_val" value="0">
+        <h3>Kalibrierwerte</h3>
+        <div class="input-grid">
+          <div class="input-group">
+            <label>X-Min Wert</label>
+            <input type="number" id="xMinVal" value="0">
+          </div>
+          <div class="input-group">
+            <label>X-Max Wert</label>
+            <input type="number" id="xMaxVal" value="100">
+          </div>
+          <div class="input-group">
+            <label>Y-Min Wert</label>
+            <input type="number" id="yMinVal" value="0">
+          </div>
+          <div class="input-group">
+            <label>Y-Max Wert</label>
+            <input type="number" id="yMaxVal" value="10">
+          </div>
         </div>
-        <div class="input-row">
-          <span>Y2 Wert (oben):</span>
-          <input type="number" id="y2_val" value="10">
-        </div>
-        <button id="btnSetY" style="width: 100%; margin-top: 4px;">Y1 & Y2 setzen</button>
       </div>
 
-      <div class="panel" style="flex:1;">
-        <h3 id="mode-status">3. Digitalisieren</h3>
-        <p style="font-size: 12px; color: #aaa; margin-bottom: 6px;">Klicken zum Setzen, Steuerkreuz für Feinausrichtung.</p>
+      <div class="panel" style="flex:1; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3>Datenpunkte</h3>
+          <button style="background:#ef4444; padding:3px 6px; font-size:11px;" onclick="clearDataPoints()">Leeren</button>
+        </div>
         <table id="dataTable">
           <thead>
             <tr><th>#</th><th>X</th><th>Y</th></tr>
@@ -214,207 +242,195 @@
     const ctx = canvas.getContext('2d');
     const fileInput = document.getElementById('fileInput');
 
-    let baseImage = null;
-    let rotation = 0; // 0, 90, 180, 270
+    let imgElement = new Image();
+    let currentMode = 'align'; // 'align', 'calib', 'data'
+    let activePointRef = null;
 
-    // Modus: 'idle', 'set_x1', 'set_x2', 'set_y1', 'set_y2', 'digitize'
-    let mode = 'digitize';
-    
-    // Kalibrierpunkte (in Bildkoordinaten)
-    let calib = {
+    // 4 Ecken fürs Entzerren [TL, TR, BR, BL]
+    let alignCorners = [];
+
+    // Kalibrier-Punkte: [X1, X2, Y1, Y2]
+    let calibPoints = {
       x1: null, x2: null,
       y1: null, y2: null
     };
+    let calibStep = 0; // 0: X1, 1: X2, 2: Y1, 3: Y2
 
+    // Datenpunkte
     let dataPoints = [];
-    let activePointRef = null; // Zeigt auf den Punkt, der aktuell via Pfeiltasten justiert wird
 
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          baseImage = img;
-          rotation = 0;
-          initCanvas();
+        imgElement = new Image();
+        imgElement.onload = () => {
+          canvas.width = imgElement.width;
+          canvas.height = imgElement.height;
+          // Standard-Ecken initialisieren
+          alignCorners = [
+            { x: imgElement.width * 0.05, y: imgElement.height * 0.05 },
+            { x: imgElement.width * 0.95, y: imgElement.height * 0.05 },
+            { x: imgElement.width * 0.95, y: imgElement.height * 0.95 },
+            { x: imgElement.width * 0.05, y: imgElement.height * 0.95 }
+          ];
+          setMode('align');
+          redraw();
         };
-        img.src = event.target.result;
+        imgElement.src = event.target.result;
       };
       reader.readAsDataURL(file);
     });
 
-    document.getElementById('btnRotate').addEventListener('click', () => {
-      if (!baseImage) return;
-      rotation = (rotation + 90) % 360;
-      // Kalibrierdaten zurücksetzen, da Koordinatensystem gedreht wird
-      calib = { x1: null, x2: null, y1: null, y2: null };
-      dataPoints = [];
-      initCanvas();
-    });
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('modeAlignBtn').classList.toggle('active-mode', mode === 'align');
+      document.getElementById('modeCalibBtn').classList.toggle('active-mode', mode === 'calib');
+      document.getElementById('modeDataBtn').classList.toggle('active-mode', mode === 'data');
 
-    function initCanvas() {
-      if (!baseImage) return;
-      if (rotation === 90 || rotation === 270) {
-        canvas.width = baseImage.height;
-        canvas.height = baseImage.width;
-      } else {
-        canvas.width = baseImage.width;
-        canvas.height = baseImage.height;
+      const title = document.getElementById('panel-title');
+      const desc = document.getElementById('status-desc');
+
+      if (mode === 'align') {
+        title.innerText = 'Modus: 1. Ausrichten';
+        desc.innerText = 'Klicke eine Ecke zum Verschieben an oder setze sie neu. Klicke dann "Geraderücken".';
+      } else if (mode === 'calib') {
+        title.innerText = 'Modus: 2. Kalibrieren';
+        calibStep = 0;
+        desc.innerText = 'Klicke nacheinander: 1. X-Min, 2. X-Max, 3. Y-Min, 4. Y-Max.';
+      } else if (mode === 'data') {
+        title.innerText = 'Modus: 3. Datenpunkte';
+        desc.innerText = 'Klicke Datenpunkte im Diagramm an. Steuerkreuz nutzt den letzten Punkt.';
       }
       redraw();
     }
 
-    function redraw() {
-      if (!baseImage) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      ctx.save();
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate((rotation * Math.PI) / 180);
-      ctx.drawImage(baseImage, -baseImage.width / 2, -baseImage.height / 2);
-      ctx.restore();
-
-      // Zeichne Kalibrierachsen/-punkte
-      drawMarker(calib.x1, '#3b82f6', 'X1');
-      drawMarker(calib.x2, '#3b82f6', 'X2');
-      drawMarker(calib.y1, '#10b981', 'Y1');
-      drawMarker(calib.y2, '#10b981', 'Y2');
-
-      // Zeichne Datenpunkte
-      dataPoints.forEach((p, idx) => {
-        drawMarker(p, '#ef4444', `${idx + 1}`);
-      });
-    }
-
-    function drawMarker(pt, color, label) {
-      if (!pt) return;
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-      ctx.lineWidth = 2;
-
-      // Fadenkreuz
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 6, 0, 2 * Math.PI);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(pt.x - 10, pt.y);
-      ctx.lineTo(pt.x + 10, pt.y);
-      ctx.moveTo(pt.x, pt.y - 10);
-      ctx.lineTo(pt.x, pt.y + 10);
-      ctx.stroke();
-
-      ctx.font = '12px sans-serif';
-      ctx.fillText(label, pt.x + 8, pt.y - 8);
-    }
-
-    // Interaktion auf dem Canvas
+    // Canvas Klick / Touch
     canvas.addEventListener('pointerdown', (e) => {
+      if (!imgElement.src) return;
+
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
       const x = (e.clientX - rect.left) * scaleX;
       const y = (e.clientY - rect.top) * scaleY;
 
-      const pt = { x, y };
+      if (currentMode === 'align') {
+        // Nächste Ecke finden oder auswählen
+        let closest = null;
+        let minDist = Infinity;
+        alignCorners.forEach(c => {
+          const d = Math.hypot(c.x - x, c.y - y);
+          if (d < minDist) { minDist = d; closest = c; }
+        });
 
-      if (mode === 'set_x1') {
-        calib.x1 = pt;
-        activePointRef = calib.x1;
-        mode = 'set_x2';
-        document.getElementById('mode-status').innerText = 'Klicke auf X2';
-      } else if (mode === 'set_x2') {
-        calib.x2 = pt;
-        activePointRef = calib.x2;
-        mode = 'digitize';
-        document.getElementById('mode-status').innerText = '3. Digitalisieren';
-      } else if (mode === 'set_y1') {
-        calib.y1 = pt;
-        activePointRef = calib.y1;
-        mode = 'set_y2';
-        document.getElementById('mode-status').innerText = 'Klicke auf Y2';
-      } else if (mode === 'set_y2') {
-        calib.y2 = pt;
-        activePointRef = calib.y2;
-        mode = 'digitize';
-        document.getElementById('mode-status').innerText = '3. Digitalisieren';
-      } else {
+        if (minDist < 60 * scaleX) {
+          activePointRef = closest;
+        } else if (alignCorners.length < 4) {
+          const pt = { x, y };
+          alignCorners.push(pt);
+          activePointRef = pt;
+        } else {
+          activePointRef = closest;
+          activePointRef.x = x;
+          activePointRef.y = y;
+        }
+      } 
+      else if (currentMode === 'calib') {
+        const pt = { x, y };
+        activePointRef = pt;
+        if (calibStep === 0) {
+          calibPoints.x1 = pt;
+          calibStep = 1;
+          document.getElementById('status-desc').innerText = 'Klicke auf X-Max.';
+        } else if (calibStep === 1) {
+          calibPoints.x2 = pt;
+          calibStep = 2;
+          document.getElementById('status-desc').innerText = 'Klicke auf Y-Min.';
+        } else if (calibStep === 2) {
+          calibPoints.y1 = pt;
+          calibStep = 3;
+          document.getElementById('status-desc').innerText = 'Klicke auf Y-Max.';
+        } else if (calibStep === 3) {
+          calibPoints.y2 = pt;
+          calibStep = 0;
+          document.getElementById('status-desc').innerText = 'Kalibrierung vollständig! Wechsle zu "3. Punkte erfassen".';
+        }
+      } 
+      else if (currentMode === 'data') {
+        const pt = { x, y };
         dataPoints.push(pt);
         activePointRef = pt;
         updateTable();
       }
+
       redraw();
     });
 
-    document.getElementById('btnSetX').addEventListener('click', () => {
-      mode = 'set_x1';
-      document.getElementById('mode-status').innerText = 'Klicke auf X1';
-    });
-
-    document.getElementById('btnSetY').addEventListener('click', () => {
-      mode = 'set_y1';
-      document.getElementById('mode-status').innerText = 'Klicke auf Y1';
-    });
-
-    // Pfeiltasten Feinjustierung
+    // Steuerkreuz Verschiebung
     window.nudge = function(dx, dy) {
       if (!activePointRef) return;
       activePointRef.x += dx;
       activePointRef.y += dy;
       redraw();
-      updateTable();
+      if (currentMode === 'data') updateTable();
     };
 
-    function mapCoords(pt) {
-      if (!calib.x1 || !calib.x2 || !calib.y1 || !calib.y2) return { x: '–', y: '–' };
+    function redraw() {
+      if (!imgElement.src) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(imgElement, 0, 0);
 
-      const x1_val = parseFloat(document.getElementById('x1_val').value);
-      const x2_val = parseFloat(document.getElementById('x2_val').value);
-      const y1_val = parseFloat(document.getElementById('y1_val').value);
-      const y2_val = parseFloat(document.getElementById('y2_val').value);
+      // Ecken für Ausrichtung zeichnen
+      if (currentMode === 'align' && alignCorners.length > 0) {
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(alignCorners[0].x, alignCorners[0].y);
+        for (let i = 1; i < alignCorners.length; i++) ctx.lineTo(alignCorners[i].x, alignCorners[i].y);
+        if (alignCorners.length === 4) ctx.closePath();
+        ctx.stroke();
 
-      const realX = x1_val + ((pt.x - calib.x1.x) / (calib.x2.x - calib.x1.x)) * (x2_val - x1_val);
-      const realY = y1_val + ((pt.y - calib.y1.y) / (calib.y2.y - calib.y1.y)) * (y2_val - y1_val);
+        alignCorners.forEach((c, idx) => {
+          drawCircleMarker(c, '#f59e0b', `P${idx+1}`, c === activePointRef);
+        });
+      }
 
-      return {
-        x: realX.toFixed(3),
-        y: realY.toFixed(3)
-      };
-    }
+      // Kalibrier-Punkte zeichnen
+      if (calibPoints.x1) drawCircleMarker(calibPoints.x1, '#3b82f6', 'X-Min', calibPoints.x1 === activePointRef);
+      if (calibPoints.x2) drawCircleMarker(calibPoints.x2, '#3b82f6', 'X-Max', calibPoints.x2 === activePointRef);
+      if (calibPoints.y1) drawCircleMarker(calibPoints.y1, '#10b981', 'Y-Min', calibPoints.y1 === activePointRef);
+      if (calibPoints.y2) drawCircleMarker(calibPoints.y2, '#10b981', 'Y-Max', calibPoints.y2 === activePointRef);
 
-    function updateTable() {
-      const tbody = document.querySelector('#dataTable tbody');
-      tbody.innerHTML = '';
-      dataPoints.forEach((pt, i) => {
-        const val = mapCoords(pt);
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${i + 1}</td><td>${val.x}</td><td>${val.y}</td>`;
-        tbody.appendChild(tr);
+      // Datenpunkte zeichnen
+      dataPoints.forEach((p, idx) => {
+        drawCircleMarker(p, '#ef4444', `${idx+1}`, p === activePointRef);
       });
     }
 
-    document.getElementById('btnClearPoints').addEventListener('click', () => {
-      dataPoints = [];
-      activePointRef = null;
-      updateTable();
-      redraw();
-    });
+    function drawCircleMarker(pt, color, label, isActive) {
+      ctx.strokeStyle = isActive ? '#ffffff' : color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = isActive ? 3 : 2;
 
-    document.getElementById('btnExportCSV').addEventListener('click', () => {
-      if (dataPoints.length === 0) return;
-      let csv = 'Punkt,X,Y\n';
-      dataPoints.forEach((pt, i) => {
-        const val = mapCoords(pt);
-        csv += `${i + 1},${val.x},${val.y}\n`;
-      });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'diagramm_daten.csv';
-      link.click();
-    });
-  </script>
-</body>
-</html>
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, isActive ? 8 : 6, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      // Fadenkreuz
+      ctx.beginPath();
+      ctx.moveTo(pt.x - 12, pt.y); ctx.lineTo(pt.x + 12, pt.y);
+      ctx.moveTo(pt.x, pt.y - 12); ctx.lineTo(pt.x, pt.y + 12);
+      ctx.stroke();
+
+      ctx.font = '12px sans-serif';
+      ctx.fillText(label, pt.x + 10, pt.y - 10);
+    }
+
+    // 4-Punkt Entzerrung via Bilinearer Rückwärts-Transformation
+    function applyPerspectiveWarp() {
+      if (alignCorners.length < 4) return;
+
+      const [p1, p2, p3, p4] = alignCorners;
+      const width = Math.max(Math.hypot(p2.x - p1.x, p2.y - p1.y),
