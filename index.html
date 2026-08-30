@@ -13,28 +13,29 @@
       display: flex;
       flex-direction: column;
       height: 100vh;
+      height: 100dvh;
       overflow: hidden;
     }
     header {
       background: #27272a;
-      padding: 8px 12px;
+      padding: 6px 10px;
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
       align-items: center;
       border-bottom: 1px solid #3f3f46;
       z-index: 20;
+      flex-shrink: 0;
     }
     
-    /* Universeller Button- & Label-Stil */
     button, .file-btn {
       background: #3b82f6;
       color: white;
       border: none;
-      padding: 7px 12px;
+      padding: 6px 10px;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 500;
       touch-action: manipulation;
       user-select: none;
@@ -42,26 +43,24 @@
       align-items: center;
       justify-content: center;
       text-decoration: none;
+      white-space: nowrap;
     }
     button.active-mode {
       background: #f59e0b !important;
       color: #000 !important;
       font-weight: 700;
     }
-    button:disabled { background: #52525b; cursor: not-allowed; }
+    button:disabled { background: #52525b; cursor: not-allowed; opacity: 0.6; }
 
-    /* Unsichtbar, aber für den Browser voll im Renderbaum ansprechbar */
     .visually-hidden-input {
       position: absolute;
       width: 1px;
       height: 1px;
-      padding: 0;
       margin: -1px;
+      padding: 0;
       overflow: hidden;
       clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
       border: 0;
-      opacity: 0;
     }
 
     #main-container {
@@ -69,6 +68,7 @@
       flex: 1;
       position: relative;
       overflow: hidden;
+      min-height: 0; /* Wichtig für Flexbox Scrolling */
     }
 
     #canvas-container {
@@ -79,7 +79,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      min-height: 200px;
+      min-width: 0;
     }
 
     canvas {
@@ -90,30 +90,50 @@
     }
 
     #sidebar {
-      width: 300px;
+      width: 320px;
+      max-width: 100%;
       background: #27272a;
-      padding: 12px;
+      padding: 10px;
       overflow-y: auto;
       border-left: 1px solid #3f3f46;
       display: flex;
       flex-direction: column;
       gap: 10px;
+      flex-shrink: 0;
     }
 
     .panel {
       background: #18181b;
-      padding: 10px;
+      padding: 8px 10px;
       border-radius: 6px;
       border: 1px solid #3f3f46;
+      flex-shrink: 0;
     }
     .panel h3 { font-size: 13px; margin-bottom: 6px; color: #60a5fa; }
-    .status-msg { font-size: 12px; color: #a1a1aa; margin-bottom: 4px; line-height: 1.3; }
+    .status-msg { font-size: 12px; color: #a1a1aa; line-height: 1.3; }
+
+    .calib-btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .calib-target-btn {
+      background: #3f3f46;
+      font-size: 11px;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .calib-target-btn.active-target {
+      background: #3b82f6;
+      color: #fff;
+      font-weight: bold;
+    }
 
     .input-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 6px;
-      margin-bottom: 6px;
     }
     .input-group {
       display: flex;
@@ -123,7 +143,7 @@
     }
     .input-group input {
       margin-top: 2px;
-      padding: 4px 6px;
+      padding: 4px;
       border-radius: 4px;
       border: 1px solid #3f3f46;
       background: #27272a;
@@ -131,16 +151,16 @@
       text-align: right;
     }
 
-    /* Steuerkreuz */
+    /* Pfeilkreuz */
     #nudge-pad {
       position: absolute;
-      bottom: 16px;
-      left: 16px;
+      bottom: 14px;
+      left: 14px;
       background: rgba(24, 24, 27, 0.9);
       border: 1px solid #52525b;
       border-radius: 12px;
-      width: 120px;
-      height: 120px;
+      width: 115px;
+      height: 115px;
       backdrop-filter: blur(4px);
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -172,32 +192,48 @@
       cursor: pointer;
     }
 
-    table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 6px; }
-    th, td { border: 1px solid #3f3f46; padding: 4px; text-align: right; }
-    th { background: #27272a; }
+    /* Tabelle */
+    .table-wrap {
+      flex: 1;
+      min-height: 120px;
+      max-height: 250px;
+      overflow-y: auto;
+      border: 1px solid #3f3f46;
+      border-radius: 4px;
+      margin-top: 6px;
+    }
+    table { width: 100%; font-size: 11px; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #27272a; padding: 4px 6px; text-align: right; user-select: none; }
+    th { background: #27272a; position: sticky; top: 0; }
+    tr.selected-row { background: #3b82f6 !important; color: white; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover:not(.selected-row) { background: #222228; }
 
-    @media (max-width: 800px) {
+    @media (max-width: 850px) {
       #main-container { flex-direction: column; }
-      #sidebar { width: 100%; height: 230px; border-left: none; border-top: 1px solid #3f3f46; }
-      #nudge-pad { bottom: 10px; left: 10px; width: 105px; height: 105px; }
+      #sidebar { width: 100%; height: 260px; border-left: none; border-top: 1px solid #3f3f46; }
+      #nudge-pad { bottom: 8px; left: 8px; width: 95px; height: 95px; }
     }
   </style>
 </head>
 <body>
 
   <header>
-    <label class="file-btn" for="fileInput" style="background:#2563eb;">📁 Bild / Foto</label>
+    <label class="file-btn" for="fileInput" style="background:#2563eb;">📁 Bild laden</label>
     <input type="file" id="fileInput" class="visually-hidden-input" accept="image/*">
     
-    <button id="modeZoomBtn" onclick="setMode('zoom')" style="background:#0284c7;">🔍 Rechteck-Zoom</button>
-    <button onclick="resetZoom()" style="background:#4b5563;">🖼️ Vollansicht</button>
-    
     <button id="modeAlignBtn" onclick="setMode('align')">📐 1. Ausrichten</button>
-    <button id="modeCalibBtn" onclick="setMode('calib')">🎯 2. Kalibrieren</button>
-    <button id="modeDataBtn" onclick="setMode('data')">📈 3. Punkte</button>
+    <button id="btnWarp" style="background:#10b981;" onclick="applyPerspectiveWarp()">🪄 2. Geraderücken</button>
+    <button id="btnUndoWarp" style="background:#64748b;" onclick="undoPerspectiveWarp()" disabled>↩️ Entzerren rückgängig</button>
     
-    <button id="btnWarp" style="background:#10b981;" onclick="applyPerspectiveWarp()">Geraderücken</button>
-    <button id="btnExport" style="background:#8b5cf6;" onclick="exportCSV()">CSV</button>
+    <button id="modeCalibBtn" onclick="setMode('calib')">🎯 3. Kalibrieren</button>
+    <button id="modeDataBtn" onclick="setMode('data')">📈 4. Punkte erfassen</button>
+    
+    <div style="display:flex; gap:4px; margin-left:auto;">
+      <button id="modeZoomBtn" onclick="setMode('zoom')" style="background:#0284c7;">🔍 Rechteck-Zoom</button>
+      <button onclick="resetZoom()" style="background:#4b5563;">🖼️ Vollansicht</button>
+      <button id="btnExport" style="background:#8b5cf6;" onclick="exportCSV()">CSV</button>
+    </div>
   </header>
 
   <div id="main-container">
@@ -220,42 +256,55 @@
     <div id="sidebar">
       <div class="panel">
         <h3 id="panel-title">Modus: 1. Ausrichten</h3>
-        <p class="status-msg" id="status-desc">Lade ein Bild, um zu starten.</p>
+        <p class="status-msg" id="status-desc">Lade ein Bild, um zu beginnen.</p>
+        <p class="status-msg" style="margin-top:4px; font-size:11px; color:#71717a;">💡 Tipp: Mausrad = Zoom, Rechte Maustaste = Verschieben (Pan).</p>
       </div>
 
       <div class="panel">
-        <h3>Kalibrierwerte</h3>
+        <h3>3. Achsen-Kalibrierung</h3>
+        <div class="calib-btn-grid">
+          <button class="calib-target-btn" id="btn-target-x1" onclick="setCalibTarget('x1')">X-Min (P1)</button>
+          <button class="calib-target-btn" id="btn-target-x2" onclick="setCalibTarget('x2')">X-Max (P2)</button>
+          <button class="calib-target-btn" id="btn-target-y1" onclick="setCalibTarget('y1')">Y-Min (P3)</button>
+          <button class="calib-target-btn" id="btn-target-y2" onclick="setCalibTarget('y2')">Y-Max (P4)</button>
+        </div>
         <div class="input-grid">
           <div class="input-group">
-            <label>X-Min</label>
-            <input type="number" id="xMinVal" value="0">
+            <label>X-Min Wert</label>
+            <input type="number" id="xMinVal" value="0" oninput="updateTable()">
           </div>
           <div class="input-group">
-            <label>X-Max</label>
-            <input type="number" id="xMaxVal" value="100">
+            <label>X-Max Wert</label>
+            <input type="number" id="xMaxVal" value="100" oninput="updateTable()">
           </div>
           <div class="input-group">
-            <label>Y-Min</label>
-            <input type="number" id="yMinVal" value="0">
+            <label>Y-Min Wert</label>
+            <input type="number" id="yMinVal" value="0" oninput="updateTable()">
           </div>
           <div class="input-group">
-            <label>Y-Max</label>
-            <input type="number" id="yMaxVal" value="10">
+            <label>Y-Max Wert</label>
+            <input type="number" id="yMaxVal" value="10" oninput="updateTable()">
           </div>
         </div>
       </div>
 
-      <div class="panel" style="flex:1; overflow-y:auto;">
+      <div class="panel" style="flex:1; display:flex; flex-direction:column; min-height:160px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h3>Datenpunkte</h3>
-          <button style="background:#ef4444; padding:2px 6px; font-size:11px;" onclick="clearDataPoints()">Leeren</button>
+          <h3>4. Datenpunkte</h3>
+          <div style="display:flex; gap:4px;">
+            <button style="background:#e11d48; padding:3px 6px; font-size:10px;" onclick="deleteSelectedPoints()">Gewählte löschen</button>
+            <button style="background:#52525b; padding:3px 6px; font-size:10px;" onclick="clearDataPoints()">Alle leeren</button>
+          </div>
         </div>
-        <table id="dataTable">
-          <thead>
-            <tr><th>#</th><th>X</th><th>Y</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+        <p style="font-size:10px; color:#a1a1aa; margin-top:2px;">Klick = Auswählen | Strg/Shift = Mehrfachauswahl</p>
+        <div class="table-wrap">
+          <table id="dataTable">
+            <thead>
+              <tr><th>#</th><th>X</th><th>Y</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -266,21 +315,36 @@
     const container = document.getElementById('canvas-container');
     const fileInput = document.getElementById('fileInput');
 
-    let imgElement = null;
+    let rawImage = null;       // Original unentzerrt
+    let currentImage = null;   // Aktuelles Bild (entzerrt oder unentzerrt)
     let currentMode = 'align';
     let activePointRef = null;
     let stepSize = 1;
 
+    // Viewport für Zoom & Pan
     let view = { x: 0, y: 0, w: 0, h: 0 };
+    let isPanning = false;
+    let panStart = { x: 0, y: 0 };
     let zoomDragStart = null;
     let currentDragPos = null;
 
-    let alignCorners = [];
-    let calibPoints = { x1: null, x2: null, y1: null, y2: null };
-    let calibStep = 0;
-    let dataPoints = [];
+    // Touch Pinch-to-Zoom
+    let initialPinchDist = null;
 
-    const MAX_DIMENSION = 1600;
+    // Ausrichten & Entzerren
+    let alignCorners = [];
+    let previousAlignCorners = [];
+
+    // Kalibrierung
+    let calibPoints = { x1: null, x2: null, y1: null, y2: null };
+    let calibTarget = 'x1'; // 'x1', 'x2', 'y1', 'y2'
+
+    // Datenpunkte & Selektion
+    let dataPoints = [];
+    let selectedIndices = new Set();
+    let lastSelectedIndex = null;
+
+    const MAX_DIMENSION = 1800;
 
     fileInput.addEventListener('change', function(e) {
       const file = this.files && this.files[0];
@@ -293,23 +357,24 @@
           let w = tempImg.naturalWidth || tempImg.width;
           let h = tempImg.naturalHeight || tempImg.height;
 
-          // Große Fotos herunterrechnen
           if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
             const scale = Math.min(MAX_DIMENSION / w, MAX_DIMENSION / h);
             w = Math.round(w * scale);
             h = Math.round(h * scale);
           }
 
-          const offCanvas = document.createElement('canvas');
-          offCanvas.width = w;
-          offCanvas.height = h;
-          const offCtx = offCanvas.getContext('2d');
-          offCtx.drawImage(tempImg, 0, 0, w, h);
+          const off = document.createElement('canvas');
+          off.width = w; off.height = h;
+          off.getContext('2d').drawImage(tempImg, 0, 0, w, h);
 
-          imgElement = offCanvas;
+          rawImage = off;
+          currentImage = off;
+          document.getElementById('btnUndoWarp').disabled = true;
+
           alignCorners = [];
           calibPoints = { x1: null, x2: null, y1: null, y2: null };
           dataPoints = [];
+          selectedIndices.clear();
           updateTable();
           
           resetZoom();
@@ -321,23 +386,23 @@
     });
 
     function resetZoom() {
-      if (!imgElement) return;
-      view = { x: 0, y: 0, w: imgElement.width, h: imgElement.height };
+      if (!currentImage) return;
+      view = { x: 0, y: 0, w: currentImage.width, h: currentImage.height };
       resizeCanvasToFit();
       redraw();
     }
 
     function resizeCanvasToFit() {
-      if (!imgElement) return;
-      const cWidth = Math.max(container.clientWidth - 20, 100);
-      const cHeight = Math.max(container.clientHeight - 20, 100);
+      if (!currentImage) return;
+      const cWidth = Math.max(container.clientWidth - 10, 100);
+      const cHeight = Math.max(container.clientHeight - 10, 100);
       const scale = Math.min(cWidth / view.w, cHeight / view.h);
       canvas.width = Math.max(Math.round(view.w * scale), 10);
       canvas.height = Math.max(Math.round(view.h * scale), 10);
     }
 
     window.addEventListener('resize', () => {
-      if (imgElement) {
+      if (currentImage) {
         resizeCanvasToFit();
         redraw();
       }
@@ -353,27 +418,42 @@
       const title = document.getElementById('panel-title');
       const desc = document.getElementById('status-desc');
 
-      if (!imgElement) {
-        title.innerText = 'Kein Bild geladen';
-        desc.innerText = 'Bitte zuerst ein Foto über den blauen Knopf laden.';
+      if (!currentImage) {
+        title.innerText = 'Kein Bild';
+        desc.innerText = 'Bitte zuerst ein Diagramm laden.';
         return;
       }
 
-      if (mode === 'zoom') {
-        title.innerText = 'Modus: 🔍 Rechteck-Zoom';
-        desc.innerText = 'Ziehe mit gedrückter Maus ein Rechteck über den gewünschten Bereich.';
-      } else if (mode === 'align') {
+      if (mode === 'align') {
         title.innerText = 'Modus: 1. Ausrichten';
-        desc.innerText = 'Klicke nacheinander auf: P1 (TL), P2 (TR), P3 (BR), P4 (BL).';
+        desc.innerText = 'Setze 4 Eckpunkte (TL, TR, BR, BL) und klicke auf "2. Geraderücken".';
       } else if (mode === 'calib') {
-        title.innerText = 'Modus: 2. Kalibrieren';
-        calibStep = 0;
-        desc.innerText = 'Klicke nacheinander: 1. X-Min, 2. X-Max, 3. Y-Min, 4. Y-Max.';
+        title.innerText = 'Modus: 3. Kalibrieren';
+        desc.innerText = 'Wähle einen Punkt (X-Min/Max, Y-Min/Max), klicke ins Bild oder verschiebe ihn.';
+        updateCalibButtonHighlight();
       } else if (mode === 'data') {
-        title.innerText = 'Modus: 3. Datenpunkte';
-        desc.innerText = 'Klicke Datenpunkte an. Feinjustierung via Pfeilkreuz oder Tastatur.';
+        title.innerText = 'Modus: 4. Punkte erfassen';
+        desc.innerText = 'Klicke Punkte an. Klick auf vorhandene Punkte wählt diese zum Löschen/Verschieben.';
+      } else if (mode === 'zoom') {
+        title.innerText = 'Modus: 🔍 Rechteck-Zoom';
+        desc.innerText = 'Ziehe ein Rechteck über den Bereich, den du formatfüllend vergrößern möchtest.';
       }
       redraw();
+    }
+
+    function setCalibTarget(target) {
+      calibTarget = target;
+      setMode('calib');
+      activePointRef = calibPoints[target];
+      updateCalibButtonHighlight();
+      redraw();
+    }
+
+    function updateCalibButtonHighlight() {
+      ['x1', 'x2', 'y1', 'y2'].forEach(key => {
+        const btn = document.getElementById(`btn-target-${key}`);
+        btn.classList.toggle('active-target', currentMode === 'calib' && calibTarget === key);
+      });
     }
 
     window.toggleStepSize = function() {
@@ -381,7 +461,46 @@
       document.getElementById('stepToggleBtn').innerText = `${stepSize}px`;
     };
 
+    // Mausrad Zoom
+    container.addEventListener('wheel', (e) => {
+      if (!currentImage) return;
+      e.preventDefault();
+
+      const imgPt = canvasToImageCoords(e.clientX, e.clientY);
+      const zoomFactor = e.deltaY < 0 ? 0.85 : 1.15;
+
+      const newW = Math.max(20, Math.min(currentImage.width * 2, view.w * zoomFactor));
+      const newH = Math.max(20, Math.min(currentImage.height * 2, view.h * zoomFactor));
+
+      const relX = (imgPt.x - view.x) / view.w;
+      const relY = (imgPt.y - view.y) / view.h;
+
+      view.x = imgPt.x - relX * newW;
+      view.y = imgPt.y - relY * newH;
+      view.w = newW;
+      view.h = newH;
+
+      clampView();
+      resizeCanvasToFit();
+      redraw();
+    }, { passive: false });
+
+    function clampView() {
+      if (!currentImage) return;
+      view.w = Math.min(view.w, currentImage.width);
+      view.h = Math.min(view.h, currentImage.height);
+      view.x = Math.max(0, Math.min(currentImage.width - view.w, view.x));
+      view.y = Math.max(0, Math.min(currentImage.height - view.h, view.y));
+    }
+
+    // Tastatursteuerung
     window.addEventListener('keydown', (e) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedIndices.size > 0 && currentMode === 'data') {
+          deleteSelectedPoints();
+          e.preventDefault();
+        }
+      }
       if (!activePointRef) return;
       let mult = e.shiftKey ? 10 : stepSize;
       if (e.key === 'ArrowUp') { nudge(0, -1, mult); e.preventDefault(); }
@@ -394,10 +513,7 @@
       const rect = canvas.getBoundingClientRect();
       const relX = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
       const relY = Math.min(Math.max((clientY - rect.top) / rect.height, 0), 1);
-      return {
-        x: view.x + relX * view.w,
-        y: view.y + relY * view.h
-      };
+      return { x: view.x + relX * view.w, y: view.y + relY * view.h };
     }
 
     function imageToCanvasCoords(pt) {
@@ -407,8 +523,20 @@
       };
     }
 
+    // Pointer Events
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
     canvas.addEventListener('pointerdown', (e) => {
-      if (!imgElement) return;
+      if (!currentImage) return;
+
+      // Pan per rechter oder mittlerer Maustaste
+      if (e.button === 2 || e.button === 1) {
+        isPanning = true;
+        panStart = { x: e.clientX, y: e.clientY };
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+
       const imgPt = canvasToImageCoords(e.clientX, e.clientY);
 
       if (currentMode === 'zoom') {
@@ -419,58 +547,82 @@
       }
 
       if (currentMode === 'align') {
-        let closest = null;
-        let minDist = (30 / canvas.width) * view.w;
-        alignCorners.forEach(c => {
-          const d = Math.hypot(c.x - imgPt.x, c.y - imgPt.y);
-          if (d < minDist) { minDist = d; closest = c; }
-        });
-
+        let closest = findClosest(imgPt, alignCorners, (30 / canvas.width) * view.w);
         if (closest) {
           activePointRef = closest;
         } else if (alignCorners.length < 4) {
           alignCorners.push(imgPt);
           activePointRef = imgPt;
-          const names = ['P2 (TR)', 'P3 (BR)', 'P4 (BL)', 'Bereit zum Geraderücken'];
-          document.getElementById('status-desc').innerText = `P${alignCorners.length} gesetzt! Nächster: ${names[alignCorners.length - 1]}`;
         } else {
-          let closestAny = alignCorners[0];
-          let dMin = Math.hypot(alignCorners[0].x - imgPt.x, alignCorners[0].y - imgPt.y);
+          let nearest = alignCorners[0];
+          let minDist = Math.hypot(alignCorners[0].x - imgPt.x, alignCorners[0].y - imgPt.y);
           for (let i = 1; i < 4; i++) {
             const d = Math.hypot(alignCorners[i].x - imgPt.x, alignCorners[i].y - imgPt.y);
-            if (d < dMin) { dMin = d; closestAny = alignCorners[i]; }
+            if (d < minDist) { minDist = d; nearest = alignCorners[i]; }
           }
-          closestAny.x = imgPt.x;
-          closestAny.y = imgPt.y;
-          activePointRef = closestAny;
+          nearest.x = imgPt.x;
+          nearest.y = imgPt.y;
+          activePointRef = nearest;
         }
-      } 
+      }
       else if (currentMode === 'calib') {
-        activePointRef = imgPt;
-        if (calibStep === 0) {
-          calibPoints.x1 = imgPt; calibStep = 1;
-          document.getElementById('status-desc').innerText = 'Klicke auf X-Max.';
-        } else if (calibStep === 1) {
-          calibPoints.x2 = imgPt; calibStep = 2;
-          document.getElementById('status-desc').innerText = 'Klicke auf Y-Min.';
-        } else if (calibStep === 2) {
-          calibPoints.y1 = imgPt; calibStep = 3;
-          document.getElementById('status-desc').innerText = 'Klicke auf Y-Max.';
-        } else if (calibStep === 3) {
-          calibPoints.y2 = imgPt; calibStep = 0;
-          document.getElementById('status-desc').innerText = 'Kalibrierung komplett! Wähle "3. Punkte".';
+        const calibArray = Object.entries(calibPoints).filter(([k, v]) => v !== null).map(([k, v]) => ({ key: k, pt: v }));
+        let closestCalib = null;
+        let minDist = (30 / canvas.width) * view.w;
+        calibArray.forEach(item => {
+          const d = Math.hypot(item.pt.x - imgPt.x, item.pt.y - imgPt.y);
+          if (d < minDist) { minDist = d; closestCalib = item; }
+        });
+
+        if (closestCalib) {
+          calibTarget = closestCalib.key;
+          activePointRef = closestCalib.pt;
+          updateCalibButtonHighlight();
+        } else {
+          calibPoints[calibTarget] = imgPt;
+          activePointRef = imgPt;
+          // Automatischer Weiterschritt zum nächsten Kalibrierziel
+          const order = ['x1', 'x2', 'y1', 'y2'];
+          let nextIdx = (order.indexOf(calibTarget) + 1) % 4;
+          calibTarget = order[nextIdx];
+          updateCalibButtonHighlight();
         }
-      } 
+      }
       else if (currentMode === 'data') {
-        dataPoints.push(imgPt);
-        activePointRef = imgPt;
-        updateTable();
+        let closestIdx = -1;
+        let minDist = (20 / canvas.width) * view.w;
+        dataPoints.forEach((p, idx) => {
+          const d = Math.hypot(p.x - imgPt.x, p.y - imgPt.y);
+          if (d < minDist) { minDist = d; closestIdx = idx; }
+        });
+
+        if (closestIdx !== -1) {
+          handlePointSelection(closestIdx, e.shiftKey, e.ctrlKey || e.metaKey);
+          activePointRef = dataPoints[closestIdx];
+        } else {
+          dataPoints.push(imgPt);
+          activePointRef = imgPt;
+          selectedIndices.clear();
+          selectedIndices.add(dataPoints.length - 1);
+          lastSelectedIndex = dataPoints.length - 1;
+          updateTable();
+        }
       }
 
       redraw();
     });
 
     canvas.addEventListener('pointermove', (e) => {
+      if (isPanning) {
+        const dx = (e.clientX - panStart.x) * (view.w / canvas.width);
+        const dy = (e.clientY - panStart.y) * (view.h / canvas.height);
+        view.x -= dx;
+        view.y -= dy;
+        clampView();
+        panStart = { x: e.clientX, y: e.clientY };
+        redraw();
+        return;
+      }
       if (currentMode === 'zoom' && zoomDragStart) {
         currentDragPos = canvasToImageCoords(e.clientX, e.clientY);
         redraw();
@@ -478,6 +630,7 @@
     });
 
     canvas.addEventListener('pointerup', (e) => {
+      if (isPanning) { isPanning = false; return; }
       if (currentMode === 'zoom' && zoomDragStart && currentDragPos) {
         const xMin = Math.min(zoomDragStart.x, currentDragPos.x);
         const xMax = Math.max(zoomDragStart.x, currentDragPos.x);
@@ -488,20 +641,44 @@
         const h = yMax - yMin;
 
         if (w > 10 && h > 10) {
-          view = {
-            x: Math.max(0, xMin),
-            y: Math.max(0, yMin),
-            w: Math.min(imgElement.width - xMin, w),
-            h: Math.min(imgElement.height - yMin, h)
-          };
+          view = { x: xMin, y: yMin, w: w, h: h };
+          clampView();
           resizeCanvasToFit();
         }
-
         zoomDragStart = null;
         currentDragPos = null;
         redraw();
       }
     });
+
+    function findClosest(pt, list, maxDist) {
+      let closest = null;
+      let minD = maxDist;
+      list.forEach(item => {
+        const d = Math.hypot(item.x - pt.x, item.y - pt.y);
+        if (d < minD) { minD = d; closest = item; }
+      });
+      return closest;
+    }
+
+    function handlePointSelection(index, isShift, isCtrl) {
+      if (isShift && lastSelectedIndex !== null) {
+        const start = Math.min(lastSelectedIndex, index);
+        const end = Math.max(lastSelectedIndex, index);
+        selectedIndices.clear();
+        for (let i = start; i <= end; i++) selectedIndices.add(i);
+      } else if (isCtrl) {
+        if (selectedIndices.has(index)) selectedIndices.delete(index);
+        else selectedIndices.add(index);
+        lastSelectedIndex = index;
+      } else {
+        selectedIndices.clear();
+        selectedIndices.add(index);
+        lastSelectedIndex = index;
+      }
+      updateTableHighlight();
+      redraw();
+    }
 
     window.nudge = function(dx, dy, customStep) {
       if (!activePointRef) return;
@@ -513,15 +690,16 @@
     };
 
     function redraw() {
-      if (!imgElement) return;
+      if (!currentImage) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       ctx.drawImage(
-        imgElement,
+        currentImage,
         view.x, view.y, view.w, view.h,
         0, 0, canvas.width, canvas.height
       );
 
+      // Ausrichten Ecken
       if (alignCorners.length > 0) {
         ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 2;
@@ -540,15 +718,19 @@
         });
       }
 
+      // Kalibrier-Punkte
       if (calibPoints.x1) drawMarker(calibPoints.x1, '#3b82f6', 'X-Min', calibPoints.x1 === activePointRef);
       if (calibPoints.x2) drawMarker(calibPoints.x2, '#3b82f6', 'X-Max', calibPoints.x2 === activePointRef);
       if (calibPoints.y1) drawMarker(calibPoints.y1, '#10b981', 'Y-Min', calibPoints.y1 === activePointRef);
       if (calibPoints.y2) drawMarker(calibPoints.y2, '#10b981', 'Y-Max', calibPoints.y2 === activePointRef);
 
+      // Datenpunkte
       dataPoints.forEach((p, idx) => {
-        drawMarker(p, '#ef4444', `${idx+1}`, p === activePointRef);
+        const isSelected = selectedIndices.has(idx);
+        drawMarker(p, isSelected ? '#fbbf24' : '#ef4444', `${idx+1}`, p === activePointRef || isSelected);
       });
 
+      // Zoom-Rechteck
       if (currentMode === 'zoom' && zoomDragStart && currentDragPos) {
         const p1 = imageToCanvasCoords(zoomDragStart);
         const p2 = imageToCanvasCoords(currentDragPos);
@@ -577,17 +759,20 @@
       ctx.moveTo(pt.x, pt.y - 10); ctx.lineTo(pt.x, pt.y + 10);
       ctx.stroke();
 
-      ctx.font = 'bold 12px sans-serif';
+      ctx.font = 'bold 11px sans-serif';
       ctx.fillText(label, pt.x + 8, pt.y - 8);
     }
 
+    // 2. Geraderücken
     function applyPerspectiveWarp() {
-      if (alignCorners.length < 4 || !imgElement) {
+      if (alignCorners.length < 4 || !currentImage) {
         alert('Bitte zuerst alle 4 Ecken P1 bis P4 setzen!');
         return;
       }
 
-      const [p0, p1, p2, p3] = alignCorners; // TL, TR, BR, BL
+      previousAlignCorners = JSON.parse(JSON.stringify(alignCorners));
+
+      const [p0, p1, p2, p3] = alignCorners;
       const w = Math.round(Math.max(Math.hypot(p1.x - p0.x, p1.y - p0.y), Math.hypot(p2.x - p3.x, p2.y - p3.y)));
       const h = Math.round(Math.max(Math.hypot(p3.x - p0.x, p3.y - p0.y), Math.hypot(p2.x - p1.x, p2.y - p1.y)));
 
@@ -627,17 +812,28 @@
         if (det === 0) { offCtx.restore(); return; }
 
         offCtx.transform(e / det, -d / det, -b / det, a / det, (b * f - c * e) / det, (c * d - a * f) / det);
-        offCtx.drawImage(imgElement, 0, 0);
+        offCtx.drawImage(currentImage, 0, 0);
         offCtx.restore();
       }
 
       mapTriangle([p0, p1, p3], [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: 0, y: h }]);
       mapTriangle([p1, p2, p3], [{ x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }]);
 
-      imgElement = offCanvas;
+      currentImage = offCanvas;
       alignCorners = [];
+      document.getElementById('btnUndoWarp').disabled = false;
       resetZoom();
       setMode('calib');
+    }
+
+    // Entzerren rückgängig
+    function undoPerspectiveWarp() {
+      if (!rawImage) return;
+      currentImage = rawImage;
+      alignCorners = previousAlignCorners;
+      document.getElementById('btnUndoWarp').disabled = true;
+      resetZoom();
+      setMode('align');
     }
 
     function calculateCoords(pt) {
@@ -660,31 +856,18 @@
       dataPoints.forEach((pt, i) => {
         const val = calculateCoords(pt);
         const tr = document.createElement('tr');
+        tr.id = `row-${i}`;
+        if (selectedIndices.has(i)) tr.classList.add('selected-row');
         tr.innerHTML = `<td>${i + 1}</td><td>${val.x}</td><td>${val.y}</td>`;
+        
+        tr.addEventListener('click', (e) => {
+          handlePointSelection(i, e.shiftKey, e.ctrlKey || e.metaKey);
+          activePointRef = dataPoints[i];
+          redraw();
+        });
+        
         tbody.appendChild(tr);
       });
     }
 
-    function clearDataPoints() {
-      dataPoints = [];
-      activePointRef = null;
-      updateTable();
-      redraw();
-    }
-
-    function exportCSV() {
-      if (dataPoints.length === 0) return;
-      let csv = 'Punkt,X,Y\n';
-      dataPoints.forEach((pt, i) => {
-        const val = calculateCoords(pt);
-        csv += `${i + 1},${val.x},${val.y}\n`;
-      });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'diagramm_daten.csv';
-      link.click();
-    }
-  </script>
-</body>
-</html>
+    function
